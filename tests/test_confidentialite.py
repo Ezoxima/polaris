@@ -1,7 +1,10 @@
 """Garde-fou de confidentialité : aucun terme privé, aucun secret, aucun chemin personnel dans les fichiers suivis.
 
-Ce dépôt est une version publique et générique de Polaris. Ce test parcourt tous les fichiers suivis par git (et leurs
-noms) et échoue si l'un contient un terme de la liste ci-dessous. Il est volontairement sévère.
+Ce dépôt est une version publique et générique de Polaris. Ce test parcourt les fichiers SUIVIS par git
+(`git ls-files`, et leurs noms) et échoue si l'un contient un terme de la liste ci-dessous. Il est volontairement
+sévère. Il ne lit donc jamais les fichiers de personnalisation locale (`registre/*.local.md`, `donnees/`,
+`config.json`, `briefs/`, `memoire/`…) : ils sont ignorés par git et ne seront jamais publiés. Hors dépôt Git (dossier
+copié sans `.git`), il parcourt tout le dossier SAUF ce que `.gitignore` écarte, pour la même raison.
 
 Les motifs sont écrits avec UN caractère entre crochets (par exemple `s[o]rare`) : le motif reste équivalent au terme
 visé, mais le texte du motif lui-même ne contient jamais le terme. Sans cela, ce fichier ferait échouer la recherche
@@ -14,6 +17,7 @@ continue) est retirée du texte avant la recherche.
 
 from __future__ import annotations
 
+import fnmatch
 import re
 import subprocess
 from pathlib import Path
@@ -60,22 +64,53 @@ COMPILES = [(re.compile(motif, re.IGNORECASE), raison) for motif, _exemple, rais
 ADRESSE_PUBLIQUE = re.compile(r"Ezo[x]ima/polaris")
 
 
-def fichiers_suivis() -> list[Path]:
-    """Fichiers suivis par git ; à défaut de dépôt git (archive), tous les fichiers hors `.git`."""
+def regles_gitignore(racine: Path) -> list[tuple[bool, str]]:
+    """(négation, motif) de `.gitignore` ; un sous-ensemble suffisant : `*`, `?`, dossier final `/`, `!`."""
+    try:
+        lignes = (racine / ".gitignore").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    regles = []
+    for ligne in (x.strip() for x in lignes):
+        if ligne and not ligne.startswith("#"):
+            regles.append((ligne.startswith("!"), ligne.lstrip("!").rstrip("/")))
+    return regles
+
+
+def ignore_par_gitignore(relatif: str, regles: list[tuple[bool, str]]) -> bool:
+    """Vrai si `.gitignore` écarterait ce chemin (la dernière règle qui correspond l'emporte)."""
+    parties = relatif.split("/")
+    ignore = False
+    for negation, motif in regles:
+        if "/" in motif:
+            correspond = fnmatch.fnmatch(relatif, motif) or any(
+                fnmatch.fnmatch("/".join(parties[:i]), motif) for i in range(1, len(parties))
+            )
+        else:
+            correspond = any(fnmatch.fnmatch(p, motif) for p in parties)
+        if correspond:
+            ignore = not negation
+    return ignore
+
+
+def fichiers_suivis(racine: Path = RACINE) -> list[Path]:
+    """Fichiers suivis par git ; hors dépôt git, tous les fichiers sauf `.git` et ce que `.gitignore` écarte."""
     try:
         sortie = subprocess.run(
-            ["git", "-C", str(RACINE), "ls-files", "-z"], capture_output=True, check=True, timeout=60
+            ["git", "-C", str(racine), "ls-files", "-z"], capture_output=True, check=True, timeout=60
         ).stdout.decode("utf-8")
         noms = [n for n in sortie.split("\0") if n]
     except (OSError, subprocess.SubprocessError):
         noms = []
     if not noms:
-        noms = [
-            p.relative_to(RACINE).as_posix()
-            for p in RACINE.rglob("*")
-            if p.is_file() and ".git" not in p.relative_to(RACINE).parts and "__pycache__" not in p.parts
-        ]
-    return [RACINE / n for n in noms]
+        regles = regles_gitignore(racine)
+        noms = []
+        for p in racine.rglob("*"):
+            relatif = p.relative_to(racine)
+            if p.is_file() and ".git" not in relatif.parts and "__pycache__" not in relatif.parts:
+                if not ignore_par_gitignore(relatif.as_posix(), regles):
+                    noms.append(relatif.as_posix())
+    return [racine / n for n in noms]
 
 
 def trouver(texte: str) -> list[str]:
@@ -86,6 +121,25 @@ def trouver(texte: str) -> list[str]:
 
 def test_il_y_a_des_fichiers_a_verifier():
     assert len(fichiers_suivis()) > 30
+
+
+def test_hors_depot_git_les_fichiers_ignores_ne_sont_pas_parcourus(tmp_path):
+    """Un dossier copié sans `.git` : la personnalisation locale (ignorée par git) n'est jamais lue."""
+    (tmp_path / ".gitignore").write_text((RACINE / ".gitignore").read_text(encoding="utf-8"), encoding="utf-8")
+    publics = ["README.md", "registre/projets.md", "donnees/veille.exemple.json", "outils/x.py"]
+    locaux = [
+        "registre/preferences.local.md",
+        "donnees/missions.jsonl",
+        "config.json",
+        "briefs/m-1.md",
+        "memoire/projet/axe.md",
+        "outils/__pycache__/x.pyc",
+    ]
+    for nom in publics + locaux:
+        (tmp_path / nom).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / nom).write_text("contenu", encoding="utf-8")
+    vus = {p.relative_to(tmp_path).as_posix() for p in fichiers_suivis(tmp_path)}
+    assert vus == {".gitignore", *publics}
 
 
 def test_chaque_motif_detecte_son_exemple():

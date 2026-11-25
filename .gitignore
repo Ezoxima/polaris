@@ -18,6 +18,9 @@ donnees/*
 !donnees/*.exemple.json
 !donnees/*.exemple.jsonl
 
+# Personnalisation locale : registres et préférences propres à une installation (voir docs/installation-restreinte.md)
+registre/*.local.md
+
 # Contenu propre à chaque utilisateur : briefs, comptes rendus, mémoire des projets
 briefs/
 memoire/*

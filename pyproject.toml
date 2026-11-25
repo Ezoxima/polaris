@@ -18,6 +18,8 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
+# Les messages et gabarits en français dépassent parfois la largeur : le formateur gère le code, pas la prose.
+ignore = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

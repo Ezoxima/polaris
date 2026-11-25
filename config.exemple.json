@@ -1,0 +1,39 @@
+{
+  "moteur_par_defaut": "claude",
+  "racine_projets": "~/projets",
+  "defauts": {
+    "budget_usd_par_minute": 0.2,
+    "budget_usd_min": 3,
+    "budget_usd_max": 20,
+    "duree_max_plafond_min": 120,
+    "max_en_cours": 3
+  },
+  "copilot": {
+    "modeles": {
+      "haiku": "",
+      "sonnet": "",
+      "opus": ""
+    }
+  },
+  "projets": {
+    "boutique-web": {
+      "cwd": "boutique-web",
+      "git_root": "boutique-web",
+      "add_dirs": [],
+      "autorise": ["PowerShell(python -m pytest*)", "Bash(python -m pytest*)", "Bash(ruff check*)"]
+    },
+    "pipeline-ventes": {
+      "cwd": "pipeline-ventes",
+      "git_root": "pipeline-ventes",
+      "add_dirs": [],
+      "autorise": []
+    }
+  },
+  "kanban": {
+    "proprietaire": "@me",
+    "titre": "Orion",
+    "numero": null,
+    "projet_id": "",
+    "champs": {}
+  }
+}

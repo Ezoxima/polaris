@@ -694,7 +694,14 @@ def verifier_lancement(
         raise Refus(
             f"commande « {plan.commande[0]} » introuvable dans le PATH : installe-la ou choisis un autre --moteur."
         )
-    evenements, maintenant = commun.lire_journal(ctx.journal), ctx.maintenant()
+    try:
+        evenements = commun.lire_journal(ctx.journal)
+    except commun.ErreurJournal as e:
+        raise Refus(
+            f"{e} Impossible de savoir si une mission est déjà en cours : corrige l'accès puis relance."
+        ) from None
+    maintenant = ctx.maintenant()
+    avertissement_journal = evenements.avertissement()
     debut = mission_en_cours(evenements, plan.mission, maintenant)
     if debut:
         raise Refus(
@@ -709,8 +716,13 @@ def verifier_lancement(
             f"au bout de {SEUIL_EN_COURS_H} h le blocage tombe."
         )
     sans_autre = "aucune autre mission en cours sur ce projet"
+    notes_journal = [avertissement_journal] if avertissement_journal else []
     if not plafond_cartes:
-        return [sans_autre, f"plafond des {ctx.max_en_cours} cartes « En cours » levé (--parallele), Orion non lu"]
+        return [
+            *notes_journal,
+            sans_autre,
+            f"plafond des {ctx.max_en_cours} cartes « En cours » levé (--parallele), Orion non lu",
+        ]
     try:
         cartes = ctx.lire_cartes()
     except Refus:
@@ -723,7 +735,11 @@ def verifier_lancement(
             f"{len(en_cours)} cartes « En cours » hors POC (maximum {ctx.max_en_cours}) : "
             + " ; ".join(kanban.titre_carte(c) for c in en_cours)
         )
-    return [sans_autre, f"Orion : {len(en_cours)} carte(s) « En cours » hors POC (< {ctx.max_en_cours})"]
+    return [
+        *notes_journal,
+        sans_autre,
+        f"Orion : {len(en_cours)} carte(s) « En cours » hors POC (< {ctx.max_en_cours})",
+    ]
 
 
 # ---------- résultat de la session ----------

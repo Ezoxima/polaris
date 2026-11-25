@@ -149,11 +149,28 @@ def test_lire_ts_et_iso():
     assert commun.lire_ts("n'importe quoi") is None and commun.lire_ts(5) is None
 
 
-def test_lire_journal_ignore_les_lignes_corrompues(tmp_path):
+def test_lire_journal_compte_et_signale_les_lignes_corrompues(tmp_path):
     f = tmp_path / "j.jsonl"
-    f.write_text('{"a": 1}\npas du json\n[1]\n{"b": 2}\n', encoding="utf-8")
-    assert commun.lire_journal(f) == [{"a": 1}, {"b": 2}]
-    assert commun.lire_journal(tmp_path / "absent.jsonl") == []
+    f.write_text('{"a": 1}\npas du json\n\n[1]\n{"b": 2}\n', encoding="utf-8")
+    j = commun.lire_journal(f)
+    assert j == [{"a": 1}, {"b": 2}] and j.corrompues == [2, 4]  # la ligne vide n'est pas une corruption
+    assert "2 ligne(s)" in j.avertissement() and "2, 4" in j.avertissement()
+
+
+def test_lire_journal_sain_n_a_pas_d_avertissement(tmp_path):
+    f = tmp_path / "j.jsonl"
+    f.write_text('{"a": 1}\n', encoding="utf-8")
+    assert commun.lire_journal(f).avertissement() is None
+
+
+def test_lire_journal_absent_donne_une_liste_vide(tmp_path):
+    j = commun.lire_journal(tmp_path / "absent.jsonl")
+    assert j == [] and j.corrompues == []
+
+
+def test_lire_journal_illisible_leve_une_erreur(tmp_path):
+    with pytest.raises(commun.ErreurJournal, match="illisible"):
+        commun.lire_journal(tmp_path)  # un dossier : erreur d'E/S, pas un journal absent
 
 
 # ---------- nouvel_id ----------

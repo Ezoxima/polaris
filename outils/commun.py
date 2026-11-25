@@ -41,21 +41,56 @@ def charger_config(racine: Path = RACINE) -> dict[str, Any]:
     return donnees
 
 
-def lire_journal(chemin: Path) -> list[dict]:
-    """Lignes JSON valides du journal. Une ligne corrompue est ignorée ; un journal absent donne []."""
+class ErreurJournal(Exception):
+    """Le journal existe mais n'a pas pu être lu (droits, disque, verrou) ; différent d'un journal absent."""
+
+
+class Journal(list):
+    """Événements valides du journal (c'est une liste de dict) ; `corrompues` : numéros (à partir de 1) des lignes
+    non vides qui n'étaient pas un objet JSON, ignorées mais jamais sans trace."""
+
+    corrompues: list[int]
+
+    def __init__(self, evenements=(), corrompues=()):
+        super().__init__(evenements)
+        self.corrompues = list(corrompues)
+
+    def avertissement(self) -> str | None:
+        """Phrase à afficher quand des lignes ont été ignorées ; None s'il n'y en a pas."""
+        if not self.corrompues:
+            return None
+        numeros = ", ".join(str(n) for n in self.corrompues[:10]) + (", …" if len(self.corrompues) > 10 else "")
+        return f"journal : {len(self.corrompues)} ligne(s) illisible(s) ignorée(s) (n° {numeros})."
+
+
+def lire_journal(chemin: Path) -> Journal:
+    """Événements valides du journal.
+
+    - journal absent : `Journal` vide (cas normal, avant la première mission) ;
+    - journal présent mais illisible (erreur d'E/S) : lève ErreurJournal, jamais une liste vide qui ferait croire
+      qu'aucune mission n'est en cours ;
+    - ligne non vide qui n'est pas un objet JSON : ignorée mais comptée dans `Journal.corrompues`.
+    """
+    chemin = Path(chemin)
     try:
-        lignes = Path(chemin).read_text(encoding="utf-8", errors="replace").splitlines()
-    except OSError:
-        return []
-    evenements = []
-    for ligne in lignes:
+        lignes = chemin.read_text(encoding="utf-8", errors="replace").splitlines()
+    except FileNotFoundError:
+        return Journal()
+    except OSError as e:
+        raise ErreurJournal(f"journal {chemin.name} illisible ({type(e).__name__}).") from None
+    evenements, corrompues = [], []
+    for numero, ligne in enumerate(lignes, start=1):
+        if not ligne.strip():
+            continue
         try:
             e = json.loads(ligne)
         except ValueError:
-            continue
+            e = None
         if isinstance(e, dict):
             evenements.append(e)
-    return evenements
+        else:
+            corrompues.append(numero)
+    return Journal(evenements, corrompues)
 
 
 def lire_ts(valeur: object) -> datetime | None:

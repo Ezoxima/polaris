@@ -402,6 +402,27 @@ def test_autre_mission_autre_projet_autorisee(tmp_path):
     assert aller(racine, ID, executer=FauxExecuteur()) == 0
 
 
+def test_journal_illisible_refuse_au_lieu_de_croire_qu_il_est_vide(tmp_path, capsys, monkeypatch):
+    racine = monde(tmp_path)
+
+    def illisible(_chemin):
+        raise lm.commun.ErreurJournal("journal missions.jsonl illisible (PermissionError).")
+
+    monkeypatch.setattr(lm.commun, "lire_journal", illisible)
+    faux = FauxExecuteur()
+    assert aller(racine, ID, executer=faux) == 2
+    err = capsys.readouterr().err
+    assert "illisible" in err and "Impossible de savoir" in err and faux.appels == []
+
+
+def test_lignes_de_journal_abimees_sont_signalees(tmp_path, capsys):
+    racine = monde(tmp_path)
+    journal = racine / "donnees" / "missions.jsonl"
+    journal.write_text("pas du json\n" + journal.read_text(encoding="utf-8"), encoding="utf-8")
+    assert aller(racine, ID, executer=FauxExecuteur(), argv=["--dry-run"]) == 0
+    assert "1 ligne(s) illisible(s) ignorée(s) (n° 1)" in capsys.readouterr().out
+
+
 def test_stop_refuse(tmp_path, capsys):
     racine = monde(tmp_path)
     (racine / "donnees" / "STOP").write_text("", encoding="utf-8")

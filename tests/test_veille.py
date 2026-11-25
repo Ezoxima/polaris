@@ -588,6 +588,23 @@ def test_sans_ecrire_n_ecrit_pas_mais_lit(tmp_path):
     assert not (d / "veille.json").exists()
 
 
+def test_journal_abime_est_signale_en_note(tmp_path):
+    d = dossier(tmp_path, brut={"missions.jsonl": "pas du json\n"})
+    r = veille.analyser(d, MAINT, faux_ps(), faux_gh([]), FUSEAU, config_kanban=None, windows=False)
+    assert any("1 ligne(s) illisible(s)" in n for n in r["notes"])
+
+
+def test_journal_illisible_est_une_erreur_de_lecture(tmp_path, monkeypatch):
+    d = dossier(tmp_path)
+
+    def illisible(_chemin):
+        raise commun.ErreurJournal("journal missions.jsonl illisible (PermissionError).")
+
+    monkeypatch.setattr(commun, "lire_journal", illisible)
+    r = veille.analyser(d, MAINT, faux_ps(), faux_gh([]), FUSEAU, config_kanban=None, windows=False)
+    assert any(e.startswith("Journal :") and "illisible" in e for e in r["erreurs"])
+
+
 def test_aucun_secret_dans_la_sortie(tmp_path):
     d = dossier(tmp_path, echeances=[{"date": "2026-11-20", "libelle": "Rendu"}])
     r = veille.analyser(d, MAINT, faux_ps(), faux_gh([carte("A")]), FUSEAU, config_kanban=KANBAN, windows=True)

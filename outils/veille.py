@@ -741,7 +741,12 @@ def analyser(
         if exemples or not chemin_journal.is_file():
             notes.append("donnees/missions.jsonl absent : missions sans fin non vérifiées.")
         else:
-            alertes += alertes_journal(commun.lire_journal(chemin_journal), maintenant)
+            journal = commun.lire_journal(chemin_journal)
+            alertes += alertes_journal(journal, maintenant)
+            if (avertissement := journal.avertissement()) is not None:
+                notes.append(avertissement)
+    except commun.ErreurJournal as exc:
+        erreurs.append(f"Journal : {exc}")
     except Exception as exc:  # noqa: BLE001
         erreurs.append(f"Journal : erreur interne ({type(exc).__name__}).")
 

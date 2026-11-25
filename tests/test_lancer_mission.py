@@ -60,6 +60,7 @@ def monde(tmp_path, texte=None, mission=ID, journal=(), projets=None, defauts=No
     (base / "autre" / ".git").mkdir(parents=True)
     (base / "sansgit").mkdir()
     config = {
+        "copilot": {"modeles": {"sonnet": "modele-standard", "opus": "modele-fort", "haiku": "modele-leger"}},
         "racine_projets": str(base),
         "defauts": defauts or {"budget_usd_par_minute": 0.2, "budget_usd_min": 3, "budget_usd_max": 20},
         "projets": projets
@@ -174,7 +175,18 @@ class Attentes(list):
         self.append(secondes)
 
 
-def aller(racine, *ids, executer=None, cartes=(), git=None, dormir=None, argv=(), lire_cartes=None, trouver=None):
+def aller(
+    racine,
+    *ids,
+    executer=None,
+    cartes=(),
+    git=None,
+    dormir=None,
+    argv=(),
+    lire_cartes=None,
+    trouver=None,
+    aide="",
+):
     executer = executer or FauxExecuteur()
     return lm.main(
         [*ids, *argv],
@@ -186,6 +198,7 @@ def aller(racine, *ids, executer=None, cartes=(), git=None, dormir=None, argv=()
         git=git or FauxGit(),
         eveil=lambda actif: None,
         trouver=trouver or (lambda nom: f"/usr/bin/{nom}"),
+        aide_copilot=lambda: aide,
     )
 
 
@@ -240,8 +253,9 @@ def test_brief_illisible(texte, fragment):
 
 
 # ---------- préparation et refus ----------
-def preparer(racine, mission=ID, moteur="claude"):
-    return lm.preparer(mission, racine, json.loads((racine / "config.json").read_text(encoding="utf-8")), moteur)
+def preparer(racine, mission=ID, moteur="claude", aide=None):
+    config = json.loads((racine / "config.json").read_text(encoding="utf-8"))
+    return lm.preparer(mission, racine, config, moteur, aide)
 
 
 def test_preparer_claude_construit_la_commande(tmp_path):
@@ -324,14 +338,202 @@ def test_copilot_commande_et_notes(tmp_path):
     assert "--deny-tool=shell(git push)" in cmd and "--deny-tool=shell(git reset)" in cmd
     assert not any(a.startswith("--allow-tool=") and "push" in a for a in cmd)
     assert p.entree == ""  # le prompt passe par l'argument, pas par l'entrée standard
-    assert any("effort et budget" in n for n in p.notes) and any("non testés" in n for n in p.notes)
-    assert not any("aucun modèle déclaré" in n for n in p.notes)
+    assert any("effort du brief non transmis" in n for n in p.notes) and any("non testés" in n for n in p.notes)
+    assert p.options_detectees == [] and p.options_transmises == []
 
 
-def test_copilot_sans_modele_declare_pas_de_model(tmp_path):
-    p = preparer(monde(tmp_path), moteur="copilot")
-    assert not any(a.startswith("--model") for a in p.commande)
-    assert any("aucun modèle déclaré" in n for n in p.notes)
+@pytest.mark.parametrize("extra", [{"copilot": {"modeles": {"sonnet": "  "}}}, {"copilot": {}}, {"copilot": 3}])
+def test_copilot_sans_modele_declare_refuse_et_nomme_la_cle(tmp_path, extra):
+    racine = monde(tmp_path, extra=extra)
+    with pytest.raises(lm.Refus, match=r"copilot\.modeles\.sonnet"):
+        preparer(racine, moteur="copilot")
+
+
+def test_projet_absent_renvoie_a_l_etape_de_configuration(tmp_path):
+    racine = monde(tmp_path, texte=brief(projet="inconnu"))
+    with pytest.raises(lm.Refus, match="absent de config.json.*docs/installation.md"):
+        preparer(racine, moteur="copilot")
+
+
+# Textes d'aide FICTIFS (aucun appel à `copilot --help`) : ancienne version sans les options, version récente avec.
+AIDE_ANCIENNE = """Usage: copilot [options]
+  -p, --prompt <texte>   prompt non interactif
+  --model <modele>       modèle
+  --allow-tool <outil>   autorise un outil
+"""
+AIDE_RECENTE = """Usage: copilot [options]
+  -p, --prompt <texte>        prompt non interactif
+  --reasoning-effort <level>  effort de raisonnement (choices: "low", "medium", "high")
+  --max-ai-credits <n>        plafond de crédits IA
+  --usage-output-file <path>  écrit l'usage dans un fichier
+  --allow-all-tools           autorise tous les outils (requis en mode non interactif)
+"""
+AIDE_SANS_LISTE = AIDE_RECENTE.replace(' (choices: "low", "medium", "high")', "")
+
+
+def test_analyser_aide_ancienne_version():
+    a = lm.analyser_aide_copilot(AIDE_ANCIENNE)
+    assert a.lue and a.options == frozenset() and a.efforts == ()
+
+
+def test_analyser_aide_recente_version():
+    a = lm.analyser_aide_copilot(AIDE_RECENTE)
+    assert a.options == frozenset(lm.OPTIONS_COPILOT_SUIVIES)
+    assert a.efforts == ("low", "medium", "high")
+    assert lm.analyser_aide_copilot(AIDE_SANS_LISTE).efforts == ()
+
+
+@pytest.mark.parametrize("texte", [None, "", "  \n"])
+def test_analyser_aide_absente(texte):
+    assert lm.analyser_aide_copilot(texte) == lm.AideCopilot()
+
+
+def test_analyser_aide_ne_confond_pas_les_prefixes():
+    a = lm.analyser_aide_copilot("  --max-ai-credits-extra <n>\n  --usage-output-files x\n")
+    assert a.options == frozenset()
+
+
+def test_copilot_recent_transmet_effort_et_fichier_d_usage_sans_credits_par_defaut(tmp_path):
+    p = preparer(monde(tmp_path), moteur="copilot", aide=AIDE_RECENTE)
+    assert "--reasoning-effort=high" in p.commande
+    assert not any(a.startswith("--max-ai-credits") for a in p.commande)  # jamais déduit du budget USD
+    assert any(a.startswith("--usage-output-file=") for a in p.commande)
+    assert "--allow-all-tools" not in p.commande
+    assert p.options_transmises == ["--reasoning-effort", "--usage-output-file"]
+    assert any("aucun plafond n'est fixé" in n and "pas des dollars" in n for n in p.notes)
+    assert p.commande.count("--deny-tool=shell(git push)") == 1
+
+
+def test_copilot_ancien_ne_transmet_rien_de_facultatif(tmp_path):
+    p = preparer(monde(tmp_path), moteur="copilot", aide=AIDE_ANCIENNE)
+    assert p.options_transmises == []
+    assert not any(a.startswith(("--reasoning", "--max-ai", "--usage")) for a in p.commande)
+    assert any("--reasoning-effort : absent de l'aide" in n for n in p.notes)
+
+
+def test_copilot_effort_hors_liste_refuse(tmp_path):
+    racine = monde(tmp_path, texte=brief(execution="modèle sonnet · effort xhigh · mode 2 · durée max 60 min"))
+    with pytest.raises(lm.Refus, match="--reasoning-effort.*low, medium, high.*xhigh"):
+        preparer(racine, moteur="copilot", aide=AIDE_RECENTE)
+
+
+def test_copilot_effort_sans_liste_dans_l_aide(tmp_path):
+    racine = monde(tmp_path, texte=brief(execution="modèle sonnet · effort max · mode 2 · durée max 60 min"))
+    p = preparer(racine, moteur="copilot", aide=AIDE_SANS_LISTE)
+    assert not any(a.startswith("--reasoning-effort") for a in p.commande)
+    assert any("effort « max » non transmis" in n for n in p.notes)
+    p2 = preparer(monde(tmp_path / "2"), moteur="copilot", aide=AIDE_SANS_LISTE)
+    assert "--reasoning-effort=high" in p2.commande
+
+
+def test_copilot_credits_ia_dans_la_config(tmp_path):
+    extra = {"copilot": {"modeles": {"sonnet": "m"}, "credits_ia_max": 25}}
+    p = preparer(monde(tmp_path, extra=extra), moteur="copilot", aide=AIDE_RECENTE)
+    assert "--max-ai-credits=25" in p.commande
+    assert not any("USD" in a for a in p.commande)
+    p = preparer(monde(tmp_path / "2", extra=extra), moteur="copilot", aide=AIDE_ANCIENNE)
+    assert not any(a.startswith("--max-ai-credits") for a in p.commande)
+    assert any("`copilot.credits_ia_max` = 25 ignoré" in n for n in p.notes)
+
+
+@pytest.mark.parametrize("valeur", [0, -3, 2.5, "10", True])
+def test_copilot_credits_invalides_refuses(tmp_path, valeur):
+    extra = {"copilot": {"modeles": {"sonnet": "m"}, "credits_ia_max": valeur}}
+    with pytest.raises(lm.Refus, match="credits_ia_max"):
+        preparer(monde(tmp_path, extra=extra), moteur="copilot", aide=AIDE_RECENTE)
+
+
+def test_copilot_allow_all_tools_par_defaut_non_transmis(tmp_path):
+    p = preparer(monde(tmp_path), moteur="copilot", aide=AIDE_RECENTE)
+    assert "--allow-all-tools" not in p.commande and not p.tous_outils
+    assert "--allow-tool=write" in p.commande
+
+
+def test_copilot_allow_all_tools_sur_choix_garde_les_interdits(tmp_path):
+    extra = {"copilot": {"modeles": {"sonnet": "m"}, "autoriser_tous_outils": True}}
+    p = preparer(monde(tmp_path, extra=extra), moteur="copilot", aide=AIDE_RECENTE)
+    assert "--allow-all-tools" in p.commande and p.tous_outils
+    for interdit in lm.INTERDITS_COPILOT:
+        assert f"--deny-tool={interdit}" in p.commande
+    assert any(n.startswith("AVERTISSEMENT") and "--deny-tool" in n for n in p.notes)
+    p = preparer(monde(tmp_path / "2", extra=extra), moteur="copilot", aide=AIDE_ANCIENNE)
+    assert "--allow-all-tools" not in p.commande  # l'aide ne le liste pas : pas d'option inconnue
+
+
+@pytest.mark.parametrize("valeur", ["oui", 1, None])
+def test_copilot_autoriser_tous_outils_doit_etre_booleen(tmp_path, valeur):
+    extra = {"copilot": {"modeles": {"sonnet": "m"}, "autoriser_tous_outils": valeur}}
+    with pytest.raises(lm.Refus, match="autoriser_tous_outils"):
+        preparer(monde(tmp_path, extra=extra), moteur="copilot")
+
+
+def test_dry_run_copilot_affiche_options_detectees_et_transmises(tmp_path, capsys):
+    racine = monde(tmp_path)
+    assert aller(racine, ID, argv=["--dry-run", "--moteur", "copilot"], aide=AIDE_RECENTE) == 0
+    sortie_ = capsys.readouterr().out
+    assert "détectées : --allow-all-tools, --max-ai-credits, --reasoning-effort, --usage-output-file" in sortie_
+    assert "transmises : --reasoning-effort, --usage-output-file" in sortie_
+    assert not (racine / "donnees" / f"usage-{ID}.json").exists()
+
+
+def test_motif_allow_all_tools_reconnu():
+    assert lm.exige_allow_all_tools(lm.Sortie("", "Error: --allow-all-tools is required", False, 1, 1))
+    assert lm.exige_allow_all_tools(lm.Sortie("please use allow all tools", "", False, 1, 1))
+    assert not lm.exige_allow_all_tools(lm.Sortie("", "authentification requise", False, 1, 1))
+    assert not lm.exige_allow_all_tools(lm.Sortie("--allow-all-tools", "", False, 1, 0))  # code 0 : pas une erreur
+
+
+def test_mission_copilot_qui_reclame_allow_all_tools_s_arrete_sans_relance(tmp_path, capsys):
+    racine = monde(tmp_path)
+    ko = FauxExecuteur(lm.Sortie("", "error: --allow-all-tools required in non-interactive mode", False, 2.0, 1))
+    assert aller(racine, ID, argv=["--moteur", "copilot"], executer=ko) == 1
+    assert len(ko.appels) == 1 and "--allow-all-tools" not in ko.appels[0]["commande"]
+    assert "ne l'ajoute PAS" in capsys.readouterr().err
+    assert "docs/garde-fous.md" in compte_rendu(racine) and "autoriser_tous_outils" in compte_rendu(racine)
+    assert "réclame --allow-all-tools" in journal(racine)[-1]["note"]
+
+
+def test_fichier_d_usage_resume_dans_le_journal_et_le_compte_rendu(tmp_path):
+    racine = monde(tmp_path)
+    cible = racine / "donnees" / f"usage-{ID}.json"
+
+    def effet(_n):
+        cible.write_text('{"x": 1,\n "y": "' + "z" * 600 + '"}', encoding="utf-8")
+
+    faux = FauxExecuteur(lm.Sortie("Fait.\n", "", False, 5.0, 0), effet=effet)
+    assert aller(racine, ID, argv=["--moteur", "copilot"], executer=faux, aide=AIDE_RECENTE) == 0
+    note = journal(racine)[-1]["note"]
+    assert "usage (brut, format non éprouvé) : {" in note and note.endswith("…") and len(note) < 700
+    assert "Consommation Copilot" in compte_rendu(racine)
+    assert not cible.exists()
+
+
+def test_fichier_d_usage_absent_est_signale_sans_invention(tmp_path):
+    racine = monde(tmp_path)
+    faux = FauxExecuteur(lm.Sortie("Fait.\n", "", False, 5.0, 0))
+    assert aller(racine, ID, argv=["--moteur", "copilot"], executer=faux, aide=AIDE_RECENTE) == 0
+    assert "fichier d'usage non produit" in journal(racine)[-1]["note"]
+
+
+def test_un_vieux_fichier_d_usage_n_est_pas_relu(tmp_path):
+    racine = monde(tmp_path)
+    (racine / "donnees" / f"usage-{ID}.json").write_text("ancien", encoding="utf-8")
+    faux = FauxExecuteur(lm.Sortie("Fait.\n", "", False, 5.0, 0))
+    assert aller(racine, ID, argv=["--moteur", "copilot"], executer=faux, aide=AIDE_RECENTE) == 0
+    assert "ancien" not in journal(racine)[-1]["note"]
+
+
+def test_claude_ne_lit_pas_l_aide_de_copilot(tmp_path):
+    appels = []
+    code = lm.main(
+        [ID, "--dry-run"],
+        racine=monde(tmp_path),
+        lire_cartes=lambda: [],
+        maintenant=lambda: MAINT,
+        trouver=lambda n: "/x",
+        aide_copilot=lambda: appels.append(1) or "",
+    )
+    assert code == 0 and appels == []  # `copilot --help` n'est lu que pour le moteur copilot
 
 
 def test_copilot_brief_trop_long_refuse(tmp_path):

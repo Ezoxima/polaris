@@ -10,8 +10,10 @@ Moteurs :
   interdits sont transmis. Sortie JSON lue (coût, tours, refus de permission, identifiant de session).
 - `copilot` : `copilot -p`, brief passé dans l'argument du prompt. Options utilisées d'après la documentation de
   GitHub Copilot CLI (`--allow-tool`, `--deny-tool`, `--add-dir`, `--model`, `-s`, `--no-ask-user`). **Non testé en
-  réel** : aucune option d'effort ni de budget n'est documentée, elles ne sont donc pas transmises (la durée max
-  reste appliquée par ce lanceur). Voir docs/copilot.md.
+  réel.** Au lancement, le lanceur lit `copilot --help` (local, sans service) et ne transmet `--reasoning-effort`,
+  `--max-ai-credits` et `--usage-output-file` que si l'aide les liste ; `--allow-all-tools` seulement sur choix
+  explicite de la config. Les crédits IA ne sont pas des USD : jamais de conversion (réglage
+  `copilot.credits_ia_max`). La durée max reste appliquée par ce lanceur. Voir docs/copilot.md.
 
 Fonctionnement :
 
@@ -133,6 +135,19 @@ SOCLE_AUTORISE_COPILOT = [
     "shell(git commit)",
 ]
 INTERDITS_COPILOT = [f"shell({cmd})" for cmd in COMMANDES_GIT_INTERDITES]
+
+# Options de `copilot --help` que le lanceur sait utiliser (observées sur une version récente, jamais essayées en réel).
+OPTIONS_COPILOT_SUIVIES = ("--reasoning-effort", "--max-ai-credits", "--usage-output-file", "--allow-all-tools")
+EFFORTS_COPILOT = ("low", "medium", "high")  # valeurs transmises quand l'aide ne liste pas de valeurs
+EFFORTS_COPILOT_CONNUS = ("minimal", "low", "medium", "high", "xhigh", "max")
+MOTIF_ALLOW_ALL = re.compile(r"allow[- ]all[- ]tools", re.I)
+LIMITE_RESUME_USAGE = 400
+MESSAGE_ALLOW_ALL = (
+    "copilot réclame --allow-all-tools en mode non interactif. Le lanceur ne l'ajoute PAS de lui-même : l'autorisation "
+    "deviendrait « tout sauf la liste d'interdits » (docs/garde-fous.md). La mission n'est pas relancée. Si tu "
+    "l'acceptes, mets `copilot.autoriser_tous_outils` à true dans config.json (les --deny-tool restent passés ; "
+    "vérifie d'abord dans ta version qu'ils l'emportent), ou passe en mode 3."
+)
 
 PIED = """
 
@@ -350,6 +365,10 @@ class Plan:
     entree: str = ""  # texte envoyé sur l'entrée standard du processus (le prompt pour Claude, rien pour Copilot)
     cle: str = ""  # clé d'exclusion « un seul à la fois par projet » (cle_projet)
     notes: list = field(default_factory=list)  # avertissements affichés au dry-run (options non transmises…)
+    options_detectees: list = field(default_factory=list)  # copilot : options suivies présentes dans l'aide
+    options_transmises: list = field(default_factory=list)  # copilot : options facultatives ajoutées à la commande
+    fichier_usage: str = ""  # copilot : fichier d'usage demandé (vide si l'option n'existe pas)
+    tous_outils: bool = False  # copilot : --allow-all-tools passé, sur choix explicite de la config
 
     def base_journal(self) -> dict:
         return dict(
@@ -390,9 +409,12 @@ def construire_commande_claude(p: Plan) -> list:
     return cmd
 
 
-def construire_commande_copilot(p: Plan, modeles: dict) -> list:
-    """Commande `copilot -p` d'après la documentation GitHub (non testée en réel, voir docs/copilot.md)."""
-    cmd = ["copilot", "-p", p.prompt, "-s", "--no-ask-user"]
+def construire_commande_copilot(p: Plan, modeles: dict, extras: tuple | list = ()) -> list:
+    """Commande `copilot -p` d'après la documentation GitHub (non testée en réel, voir docs/copilot.md).
+
+    `extras` : options détectées dans l'aide (effort, crédits, fichier d'usage) et, sur choix de la config,
+    `--allow-all-tools`. Les `--deny-tool` sont toujours passés, avec ou sans `--allow-all-tools`."""
+    cmd = ["copilot", "-p", p.prompt, "-s", "--no-ask-user", *extras]
     modele = modeles.get(p.modele)
     if isinstance(modele, str) and modele.strip():
         cmd.append(f"--model={modele.strip()}")
@@ -405,6 +427,173 @@ def construire_commande_copilot(p: Plan, modeles: dict) -> list:
     return cmd
 
 
+class AideCopilot(NamedTuple):
+    """Ce que `copilot --help` annonce. `lue` faux = aide absente : aucune option facultative n'est transmise."""
+
+    lue: bool = False
+    options: frozenset = frozenset()
+    efforts: tuple = ()  # valeurs listées pour --reasoning-effort ; () si l'aide n'en liste pas
+
+
+def analyser_aide_copilot(texte: str | None) -> AideCopilot:
+    """Fonction pure : options suivies présentes dans le texte de `copilot --help`, et valeurs d'effort listées.
+
+    Une option compte si elle apparaît telle quelle (pas comme préfixe d'une autre). Les valeurs d'effort sont lues
+    dans le texte de l'option (liste entre crochets, parenthèses, ou après « choices ») ; seules celles que le
+    lanceur connaît sont gardées."""
+    if not texte or not texte.strip():
+        return AideCopilot()
+    options = frozenset(o for o in OPTIONS_COPILOT_SUIVIES if re.search(_option(o), texte))
+    efforts: tuple = ()
+    m = re.search(_option("--reasoning-effort") + r"(?P<reste>.*?)(?=\n\s*-{1,2}[A-Za-z]|\Z)", texte, re.S)
+    if m:
+        candidats = re.findall(r"(?:choices?|values?|one of)\b\s*:?\s*([^\n]+)", m["reste"], re.I)
+        candidats += re.findall(r"[\[(<{]([^\])>}\n]+)[\])>}]", m["reste"])
+        for texte_liste in candidats:  # le premier groupe qui cite au moins deux efforts connus est la liste
+            mots = re.findall(r"[a-z]+", texte_liste.lower())
+            trouves = tuple(dict.fromkeys(x for x in mots if x in EFFORTS_COPILOT_CONNUS))
+            if len(trouves) >= 2:
+                efforts = trouves
+                break
+    return AideCopilot(True, options, efforts)
+
+
+def _option(nom: str) -> str:
+    return r"(?<![\w-])" + re.escape(nom) + r"(?![\w-])"
+
+
+def lire_aide_copilot() -> str:
+    """Texte de `copilot --help` (commande locale, sans service) ; vide si la commande est absente ou échoue."""
+    exe = shutil.which("copilot")
+    if not exe:
+        return ""
+    try:
+        r = subprocess.run(
+            [exe, "--help"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30
+        )
+    except Exception:  # noqa: BLE001
+        return ""
+    return (r.stdout or "") + "\n" + (r.stderr or "")
+
+
+def exige_allow_all_tools(sortie: Sortie) -> bool:
+    """Vrai si une exécution copilot échouée réclame `--allow-all-tools` dans sa sortie."""
+    return sortie.code != 0 and bool(MOTIF_ALLOW_ALL.search(f"{sortie.out}\n{sortie.err}"))
+
+
+def resumer_usage(chemin: Path) -> str:
+    """Résumé du fichier d'usage écrit par copilot, brut et tronqué (aucun champ supposé) ; le fichier est supprimé."""
+    try:
+        brut = chemin.read_text(encoding="utf-8", errors="replace")
+    except FileNotFoundError:
+        return "fichier d'usage non produit"
+    except OSError as e:
+        return f"fichier d'usage illisible ({type(e).__name__})"
+    try:
+        chemin.unlink()
+    except OSError:
+        pass
+    compact = " ".join(brut.split())
+    if not compact:
+        return "fichier d'usage vide"
+    if len(compact) > LIMITE_RESUME_USAGE:
+        compact = compact[:LIMITE_RESUME_USAGE] + "…"
+    return f"usage (brut, format non éprouvé) : {compact}"
+
+
+def preparer_copilot(plan: Plan, config: dict, racine: Path, aide: AideCopilot) -> None:
+    """Construit la commande copilot et les notes du plan ; lève Refus (modèle non déclaré, réglage invalide)."""
+    cop = config.get("copilot")
+    cop = cop if isinstance(cop, dict) else {}
+    modeles = cop.get("modeles")
+    modeles = modeles if isinstance(modeles, dict) else {}
+    if not str(modeles.get(plan.modele) or "").strip():
+        raise Refus(
+            f"copilot : aucun nom de modèle pour « {plan.modele} » : renseigne `copilot.modeles.{plan.modele}` dans "
+            "config.json (nom exact : commande /model dans Copilot, ou aide du CLI ; docs/installation.md, "
+            "« Configurer Copilot »)."
+        )
+    credits = cop.get("credits_ia_max")
+    if credits is not None and (isinstance(credits, bool) or not isinstance(credits, int) or credits <= 0):
+        raise Refus("config.json : `copilot.credits_ia_max` doit être un entier positif (crédits IA, pas USD) ou null.")
+    tous = cop.get("autoriser_tous_outils", False)
+    if not isinstance(tous, bool):
+        raise Refus("config.json : `copilot.autoriser_tous_outils` doit être true ou false.")
+
+    plan.options_detectees = sorted(aide.options)
+    extras: list[str] = []
+    notes = plan.notes
+    origine = "absent de l'aide" if aide.lue else "aide du CLI non lue"
+
+    # effort
+    if "--reasoning-effort" in aide.options:
+        if aide.efforts and plan.effort not in aide.efforts:
+            raise Refus(
+                f"copilot : l'aide liste pour --reasoning-effort : {', '.join(aide.efforts)} ; l'effort "
+                f"« {plan.effort} » du brief n'en fait pas partie."
+            )
+        if aide.efforts or plan.effort in EFFORTS_COPILOT:
+            extras.append(f"--reasoning-effort={plan.effort}")
+        else:
+            notes.append(
+                f"copilot : effort « {plan.effort} » non transmis (l'aide ne liste pas de valeurs ; "
+                f"seules {', '.join(EFFORTS_COPILOT)} sont envoyées)."
+            )
+    else:
+        notes.append(f"copilot : effort du brief non transmis (--reasoning-effort : {origine}).")
+
+    # crédits IA : unité propre à Copilot, jamais déduite du budget USD
+    if "--max-ai-credits" in aide.options:
+        if credits is not None:
+            extras.append(f"--max-ai-credits={credits}")
+        else:
+            notes.append(
+                "copilot : --max-ai-credits existe mais aucun plafond n'est fixé (`copilot.credits_ia_max`). "
+                "Le budget USD du brief ne vaut que pour Claude : des crédits IA ne sont pas des dollars."
+            )
+    else:
+        notes.append(
+            "copilot : budget non transmis (--max-ai-credits : "
+            + origine
+            + ")"
+            + (f" ; `copilot.credits_ia_max` = {credits} ignoré" if credits is not None else "")
+            + "."
+        )
+
+    # fichier d'usage
+    if "--usage-output-file" in aide.options:
+        plan.fichier_usage = str(Path(racine) / "donnees" / f"usage-{plan.mission}.json")
+        extras.append(f"--usage-output-file={plan.fichier_usage}")
+        notes.append(
+            "copilot : fichier d'usage demandé ; son format n'est pas éprouvé, il sera résumé tel quel (brut)."
+        )
+
+    # autorisation des outils : inchangée par défaut ; --allow-all-tools seulement sur choix explicite
+    if tous:
+        if aide.lue and "--allow-all-tools" not in aide.options:
+            notes.append(
+                "copilot : `autoriser_tous_outils` est true mais --allow-all-tools est absent de l'aide : non transmis."
+            )
+        else:
+            extras.append("--allow-all-tools")
+            plan.tous_outils = True
+            notes.append(
+                "AVERTISSEMENT copilot : --allow-all-tools transmis (config.json, copilot.autoriser_tous_outils) : "
+                "tout est autorisé sauf la liste d'interdits --deny-tool, qui reste passée. Vérifie dans ta version "
+                "qu'un --deny-tool l'emporte (non éprouvé, docs/garde-fous.md)."
+            )
+
+    plan.options_transmises = [e.split("=")[0] for e in extras]
+    plan.commande = construire_commande_copilot(plan, modeles, extras)
+    longueur = len(subprocess.list2cmdline(plan.commande))
+    if longueur > LIMITE_LIGNE_COMMANDE:
+        raise Refus(
+            f"brief trop long pour la ligne de commande de copilot ({longueur} > {LIMITE_LIGNE_COMMANDE} caractères) : "
+            "raccourcis le brief ou utilise --moteur claude."
+        )
+    notes.append("copilot : motifs d'outils d'après la documentation, non testés en réel.")
+
+
 def charger_projets(config: dict) -> dict:
     """La clé `projets` de config.json ; lève Refus si elle manque."""
     if not isinstance(config.get("projets"), dict):
@@ -412,8 +601,10 @@ def charger_projets(config: dict) -> dict:
     return config
 
 
-def preparer(mission: str, racine: Path, config: dict, moteur: str = "claude") -> Plan:
-    """Contrôles qui ne dépendent que des fichiers (brief, config.json, grille) ; lève Refus."""
+def preparer(mission: str, racine: Path, config: dict, moteur: str = "claude", aide: str | None = None) -> Plan:
+    """Contrôles qui ne dépendent que des fichiers (brief, config.json, grille) ; lève Refus.
+
+    `aide` : texte de `copilot --help` fourni par l'appelant (None ou vide = non lu : aucune option facultative)."""
     if not ID_MISSION.match(mission):
         raise Refus(f"« {mission} » n'est pas un identifiant de mission (attendu : m-AAAAMMJJ-NN-xxxx).")
     if moteur not in MOTEURS:
@@ -427,7 +618,10 @@ def preparer(mission: str, racine: Path, config: dict, moteur: str = "claude") -
 
     projet = config["projets"].get(b["projet"])
     if not isinstance(projet, dict):
-        raise Refus(f"projet « {b['projet']} » absent de config.json (clé « projets ») : ajoute-le avant de lancer.")
+        raise Refus(
+            f"projet « {b['projet']} » absent de config.json (clé « projets ») : ajoute-le avant de lancer "
+            "(docs/installation.md, étape 3 : déclarer son projet)."
+        )
     if b["mode"] != 2:
         raise Refus(
             f"mode {b['mode']} : seul le mode 2 se lance ici (1 = sous-agent, 3 = session interactive pilotée par l'utilisateur)."
@@ -485,22 +679,7 @@ def preparer(mission: str, racine: Path, config: dict, moteur: str = "claude") -
         plan.entree = plan.prompt
         plan.commande = construire_commande_claude(plan)
     else:
-        modeles = config.get("copilot", {}).get("modeles", {})
-        plan.commande = construire_commande_copilot(plan, modeles if isinstance(modeles, dict) else {})
-        longueur = len(subprocess.list2cmdline(plan.commande))
-        if longueur > LIMITE_LIGNE_COMMANDE:
-            raise Refus(
-                f"brief trop long pour la ligne de commande de copilot ({longueur} > {LIMITE_LIGNE_COMMANDE} caractères) : "
-                "raccourcis le brief ou utilise --moteur claude."
-            )
-        plan.notes += [
-            "copilot : effort et budget du brief non transmis (aucune option documentée) ; la durée max reste appliquée.",
-            "copilot : motifs d'outils d'après la documentation, non testés en réel.",
-        ]
-        if not (isinstance(modeles, dict) and str(modeles.get(plan.modele, "")).strip()):
-            plan.notes.append(
-                f"copilot : aucun modèle déclaré pour « {plan.modele} » (config.json, copilot.modeles) : modèle par défaut."
-            )
+        preparer_copilot(plan, config, racine, analyser_aide_copilot(aide))
     return plan
 
 
@@ -651,6 +830,7 @@ class Contexte:
     git: Callable = git_reel
     eveil: Callable[[bool], None] = maintenir_eveil
     trouver: Callable[[str], str | None] = shutil.which
+    aide_copilot: Callable[[], str] = lire_aide_copilot
     max_en_cours: int = kanban.MAX_EN_COURS
     verrou_journal: threading.Lock = field(default_factory=threading.Lock, repr=False)
     verrou_sortie: threading.Lock = field(default_factory=threading.Lock, repr=False)
@@ -793,6 +973,10 @@ def executer_mission(plan: Plan, ctx: Contexte) -> str:
             note=f"{plan.moteur} dans {Path(plan.cwd).name}, durée max {_nb(plan.duree_max_min)} min"
             + (f", budget {_nb(plan.budget_usd)} USD" if plan.moteur == "claude" else ""),
         )
+        if plan.fichier_usage:
+            Path(plan.fichier_usage).unlink(
+                missing_ok=True
+            )  # un fichier d'une mission précédente ne doit pas être relu
         try:
             sortie = ctx.executer(plan.commande, plan.cwd, plan.entree, plan.duree_max_min * 60)
         except KeyboardInterrupt:
@@ -832,6 +1016,13 @@ def executer_mission(plan: Plan, ctx: Contexte) -> str:
     )
     if essais and evenement == "echouee":
         note += f"; {essais} reprise(s) sur limite d'usage"
+    usage = resumer_usage(Path(plan.fichier_usage)) if plan.fichier_usage else ""
+    if usage:
+        note += "; " + usage
+    exige_tous = plan.moteur == "copilot" and not plan.tous_outils and exige_allow_all_tools(sortie)
+    if exige_tous:
+        note += "; copilot réclame --allow-all-tools (non ajouté, voir le compte rendu)"
+        ctx.dire("copilot : " + MESSAGE_ALLOW_ALL, erreur=True)
     ctx.ecrire_journal(evenement=evenement, **base, session_id=d.get("session_id"), note=note)
 
     entete = [
@@ -842,6 +1033,10 @@ def executer_mission(plan: Plan, ctx: Contexte) -> str:
     ]
     for r in refus[:10]:
         entete.append(f"  - {r.get('tool_name')} : {json.dumps(r.get('tool_input'), ensure_ascii=False)[:200]}")
+    if usage:
+        entete.append(f"Consommation Copilot : {usage}")
+    if exige_tous:
+        entete += ["", "**" + MESSAGE_ALLOW_ALL + "**"]
     if avant and apres:
         entete += [
             "",
@@ -895,6 +1090,9 @@ def afficher_plan(plan: Plan, controles: list[str], ctx: Contexte) -> None:
     if retraits:
         print("  env      : variables de débogueur retirées pour la mission : " + ", ".join(retraits))
     print(f"  journal  : {ctx.journal} · compte rendu : briefs/{plan.mission}-compte-rendu.md")
+    if plan.moteur == "copilot":
+        print(f"  options copilot détectées : {', '.join(plan.options_detectees) or '(aucune)'}")
+        print(f"  options copilot transmises : {', '.join(plan.options_transmises) or '(aucune)'}")
     for n in plan.notes:
         print(f"  ! {n}")
     print("  contrôles : " + (" ; ".join(controles) if controles else "non vérifiés"))
@@ -980,6 +1178,7 @@ def main(
     git: Callable | None = None,
     eveil: Callable[[bool], None] | None = None,
     trouver: Callable[[str], str | None] | None = None,
+    aide_copilot: Callable[[], str] | None = None,
 ) -> int:
     ap = argparse.ArgumentParser(
         description="Lance des missions briefées (mode 2) : enchaînées, ou en parallèle si elles visent des projets "
@@ -1020,6 +1219,7 @@ def main(
         ("git", git),
         ("eveil", eveil),
         ("trouver", trouver),
+        ("aide_copilot", aide_copilot),
     ):
         if valeur is not None:
             setattr(ctx, nom, valeur)
@@ -1028,7 +1228,8 @@ def main(
     try:
         if len(set(a.missions)) != len(a.missions):
             raise Refus("la même mission est citée deux fois.")
-        plans = [preparer(m, ctx.racine, config, moteur) for m in a.missions]
+        aide = ctx.aide_copilot() if moteur == "copilot" else None  # `copilot --help` : local, sans service
+        plans = [preparer(m, ctx.racine, config, moteur, aide) for m in a.missions]
         cles = cles_des_projets(config)
         conflits = []
         if a.parallele:

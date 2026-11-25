@@ -61,10 +61,13 @@ Nature, Projet, Taille, Phase, Prochaine étape, `% 5 h` et `% hebdo`, puis écr
 (clé `kanban`). L'outil refuse s'il existe déjà un tableau de ce titre ou si `config.json` en désigne un ; il ne
 supprime et ne modifie jamais rien d'existant. Options : `--proprietaire LOGIN`, `--titre`, `--avec-variante`.
 
-La création du tableau n'a pas été essayée contre un vrai compte lors de la construction de ce dépôt (les tests
-simulent `gh`) ; seule la forme des réponses de `gh project list` et `gh project field-list` a été vérifiée, en lecture.
-Lis le `--dry-run`, puis vérifie le tableau obtenu sur GitHub. Si la création échoue en route, l'outil dit quel tableau
-est incomplet ; supprime-le toi-même, il ne supprime jamais rien.
+La création du tableau a été essayée sur un vrai compte le 25/11/2026 : tableau créé, six colonnes, sept champs relus
+sur GitHub, identifiants écrits dans `config.json`, et refus d'un titre déjà pris. Les tests, eux, simulent `gh`.
+
+Lis le `--dry-run`, puis vérifie le tableau obtenu sur GitHub. Le `--dry-run` n'appelle pas `gh` : il ne détecte donc
+pas un titre déjà pris, seul le vrai lancement le fait. Si ton compte a déjà un tableau « Orion », lance
+`python outils/kanban_init.py --titre "Mon titre"`. Si la création échoue en route, l'outil dit quel tableau est
+incomplet ; supprime-le toi-même, il ne supprime jamais rien.
 
 ## 5. Déclarer un premier projet
 
@@ -151,4 +154,5 @@ modifie jamais `.claude/` ni `.github/skills/` à la main : l'intégration conti
 | `gh a échoué (code 1)` | `gh` non connecté ou droit `project` absent | `gh auth login`, puis `gh auth refresh -s project` |
 | `une seule mission à la fois par projet` | une mission du même projet est en cours | attendre, ou voir le journal (le blocage tombe après 3 h) |
 | `N cartes « En cours »` | plafond du Kanban atteint | terminer une carte, ou `--parallele` si c'est voulu |
+| `Failed to start inspector` / `EADDRINUSE` au lancement d'une mission | lancé depuis l'app de bureau Claude Code, le `claude` enfant héritait de `BUN_INSPECT` (débogueur de la session parente) et visait le même port | corrigé en 0.1.2 (le lanceur retire ces variables) ; avec une version antérieure, lancer la mission depuis un terminal ordinaire |
 | `Désynchronisé` (CI ou `--verifier`) | un fichier généré a été modifié à la main | `python outils/generer_commandes.py` |

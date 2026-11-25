@@ -117,9 +117,10 @@ polaris/
 - **Copilot n'a pas été essayé en réel.** Les options de `copilot -p` et les motifs d'outils viennent de la documentation
   officielle ; chaque point non testé est listé dans [docs/copilot.md](docs/copilot.md). Aucune option d'effort ni de
   budget n'y est documentée pour `copilot -p`.
-- **La création du tableau Orion n'a été testée qu'avec un `gh` simulé.** La forme des réponses de `gh project list` et
-  de `gh project field-list` a été vérifiée en lecture sur un vrai compte ; la création du tableau, des champs et la
-  mise à jour des colonnes ne l'ont pas été : lis le `--dry-run`, puis vérifie le tableau obtenu.
+- **La création du tableau Orion a été essayée en réel le 25/11/2026**, sur un vrai compte GitHub : tableau privé créé,
+  six colonnes, sept champs relus sur GitHub, identifiants écrits dans `config.json`, et refus d'un titre déjà pris.
+  Les tests, eux, simulent `gh`. Lis le `--dry-run` (il n'appelle pas `gh` : il ne voit donc pas un titre déjà pris),
+  puis vérifie le tableau obtenu.
 - **Les garde-fous ne sont pas une barrière de sécurité.** La liste d'outils réduit les risques ; elle ne remplace
   ni le brief précis, ni la relecture du compte rendu et du diff.
 - **La veille des tâches planifiées ne fonctionne que sous Windows** ; ailleurs elle est ignorée et le dit.

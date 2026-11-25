@@ -1,0 +1,2 @@
+# Fins de ligne LF partout : les fichiers générés doivent être identiques sous Windows et Linux.
+* text=auto eol=lf

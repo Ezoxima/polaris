@@ -1,6 +1,6 @@
 ---
 type: commande
-description: Conseil de quatre avis contradictoires sur un cadrage (MVP, périmètre, décision), sur demande seulement
+description: Conseil d'avis contradictoires sur un cadrage (MVP, périmètre, décision), sur demande seulement
 argument-hint: <carte, fichier de cadrage ou sujet>
 ---
 
@@ -15,7 +15,7 @@ conseil d'avis, puis tu synthétises.
   que l'exécution passera en mode 3.
 
 ## 1. Préparer le dossier
-Rassemble **une seule base commune** que les quatre membres liront : l'échange de cadrage (fichier ou carte indiqués,
+Rassemble **une seule base commune** que les membres liront : l'échange de cadrage (fichier ou carte indiqués,
 ou le résumé que je colle), la fiche du projet dans `registre/projets.md`, les règles du `AGENTS.md` ou du
 `CLAUDE.md` du projet. Cite des **chemins**, ne recopie pas de gros blocs ; aucun secret. Si le dossier est trop mince
 pour juger, dis ce qui manque et propose de le compléter avec la skill `creuser`, mode `dossier` (trois tours au
@@ -25,19 +25,22 @@ que repousse-t-on ? »). Si une bibliothèque de méthodes est configurée (`reg
 utiles et cite-les aux membres.
 
 ## 2. Récapitulatif et accord
-Affiche : le sujet, la question, les quatre membres, deux tours, la classe de modèle standard avec un effort élevé
-pour les membres, la **consommation estimée** (relève la consommation actuelle si la plateforme l'expose). Ordre de
-grandeur : huit appels de sous-agents ; avertis si cela dépasse ce qui reste. **Attends mon accord explicite.**
+Affiche : le sujet, la question, les rôles proposés (quatre par défaut, ajustables), deux tours, la classe de modèle
+standard avec un effort élevé pour les membres, et le **plan d'exécution** : combien d'agents ou de passes tu
+comptes lancer. Ne garantis rien sur le coût : donne seulement un ordre de grandeur, présenté comme une estimation
+non vérifiée (relève la consommation actuelle si la plateforme l'expose). **Attends mon accord explicite : aucun agent
+n'est lancé avant.**
 
-## 3. Tour 1 : avis indépendants (quatre en parallèle)
+## 3. Tour 1 : un avis par rôle (en parallèle si la plateforme le permet)
 <!--claude-->
-Un seul message, quatre appels de l'outil `Agent` (`subagent_type: Plan`, `model: sonnet`, lecture seule).
+Un seul message, un appel de l'outil `Agent` par rôle (`subagent_type: Plan`, `model: sonnet`, lecture seule).
 <!--/claude-->
 <!--copilot-->
-Quatre agents personnalisés en lecture seule si ta plateforme les permet (voir `docs/copilot.md`). À défaut, joue les
-quatre rôles l'un après l'autre en les séparant nettement, et dis-moi que l'indépendance des avis est alors réduite.
+Des agents personnalisés en lecture seule si ta plateforme les permet (voir `docs/copilot.md`). À défaut, joue les
+rôles l'un après l'autre en les séparant nettement, et dis-moi que ce ne sont pas des avis séparés.
 <!--/copilot-->
-Chaque membre reçoit le dossier, la question et **son rôle seul**, sans voir les autres :
+Chaque membre reçoit le dossier, la question et **son rôle seul**. Ne promets pas que les avis soient indépendants :
+ils viennent du même modèle, avec la même base. Les rôles :
 1. **Le Pragmatique** : le plus petit MVP qui apporte de la valeur ; ce qu'on coupe, ce qui attend la v2.
 2. **L'Avocat du diable** : les hypothèses fragiles, ce qui fait échouer le projet, ce que le dossier suppose sans
    l'avoir vérifié.
@@ -48,14 +51,15 @@ Chaque membre reçoit le dossier, la question et **son rôle seul**, sans voir l
 Consigne commune : réponse de **300 mots au plus**, une recommandation nette, trois points d'appui précis (cités dans
 le dossier), une chose qu'il ignore. Pas de politesse, pas de reformulation de la question.
 
-## 4. Tour 2 : critique croisée (quatre en parallèle)
+## 4. Tour 2 : critique croisée
 Chaque membre reçoit les **trois autres avis, anonymisés (A, B, C)**, et doit désigner la faille la plus grave d'un
 avis, puis dire s'il change d'opinion et pourquoi. **150 mots au plus.** Un membre qui ne change pas d'avis le dit :
 ne force pas le consensus.
 
 ## 5. Synthèse (toi)
-Écris dans `briefs/conseil-AAAAMMJJ-NN-xxxx.md` (identifiant réservé par `python outils/nouvel_id.py`, un fichier
-court) :
+Après mon accord (ne réserve pas d'identifiant ni n'écris de fichier avant), écris dans
+`briefs/conseil-AAAAMMJJ-NN-xxxx.md` (identifiant réservé par `python outils/nouvel_id.py`, un fichier court) ; sans
+accord, donne la synthèse dans la conversation seulement :
 - **Question** et dossier utilisé (chemins).
 - **Recommandation** : le MVP ou la décision proposée, en quelques lignes.
 - **Accords solides** (trois membres sur quatre au moins) et **désaccords restants**, **sans les lisser** : qui pense
@@ -63,7 +67,7 @@ court) :
 - **Ce qu'on repousse** (hors MVP) et **ce qu'il faut vérifier avant de s'engager**.
 - **Ma décision à prendre** : les un à trois choix qui sont les miens.
 
-Rappelle que quatre avis du même modèle partagent des angles morts : un accord unanime n'est pas une preuve.
+Rappelle que des avis du même modèle partagent des angles morts : un accord unanime n'est pas une preuve.
 
 ## 6. Clôture
 Donne la synthèse en quelques lignes et le chemin du fichier. **Ne modifie rien d'autre** : propose seulement de

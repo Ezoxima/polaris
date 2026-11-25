@@ -16,6 +16,9 @@ modèle / effort vit dans [grille.md](grille.md).
   l'invente jamais.
 - **Défaut** : les questions de cadrage sont posées **une à la fois**, avec des choix cliquables quand la plateforme
   le permet, l'option recommandée en premier.
+- **Questions par tour** (entretien `creuser`, donc `/nouveau-projet`, `/conseil`, `/note --creuser`) : **1**. Une
+  seule question à la fois, avec sa recommandation. Mets un autre nombre (2, 3…) pour des tours plus larges ; la
+  commande lit cette ligne.
 - **Défaut** : devant un mot ambigu (un sigle, un nom commun à deux projets), je demande, je ne devine pas.
 - *Pour changer* : réécris la ligne (autre langue, ton plus détaillé, plusieurs questions par tour…).
 

@@ -10,8 +10,8 @@ Idée : `$ARGUMENTS` (si c'est vide, demande-la). Mode 3 : tu es dans une sessio
 pas de code applicatif : seulement les fichiers de cadrage ci-dessous.
 
 ## 1. Entretien (skill `creuser`, mode `complet`)
-Mène l'entretien avec la skill `creuser` : tours de trois questions au plus, une recommandation par question, les
-faits cherchés par toi. Les dix thèmes ci-dessous sont la **liste de contrôle** à couvrir avant de clore, pas un
+Mène l'entretien avec la skill `creuser` : le nombre de questions par tour est celui de `registre/preferences.md`
+(une seule par défaut), avec une recommandation par question, les faits cherchés par toi. Les dix thèmes ci-dessous sont la **liste de contrôle** à couvrir avant de clore, pas un
 script : l'arbre de décisions fixe l'ordre (le type de projet ouvre les branches suivantes). Ne pose que ce que tu
 ne peux pas déduire. Un mot ambigu : demande, ne devine pas.
 1. **But et type** : quel problème, pour qui, en une phrase ; type de projet (application, script ou pipeline,
@@ -48,22 +48,27 @@ liste exacte des fichiers et des cartes que tu vas créer. Vérifie que le dossi
 arrête et demande.
 
 ## 3. Créer, dans cet ordre
-1. Le dossier, `git init` et un premier commit **local** (jamais de `git push`, jamais de dépôt distant sans que je
-   le demande, et alors toujours privé).
-2. `CADRAGE.md` à la racine, d'après `registre/cadrage.md` : type, puis les six sections, 80 à 120 lignes au plus.
-3. `AGENTS.md` du dépôt, 60 à 80 lignes au plus : but, phase POC et critère de sortie, stack et commandes, règles
+Chaque étape marquée « accord » est un acte distinct : demande mon « ok » pour elle seule (un « ok » sur le
+récapitulatif ne couvre pas `git init`, le commit ni l'inscription au Kanban) et saute-la si je refuse. Un dossier
+**sans Git** est un choix valide : les étapes suivantes marchent sans dépôt.
+1. Le dossier du projet (accord : celui du récapitulatif).
+2. `git init` (accord séparé, sautable) ; puis le premier commit **local** (accord séparé, sautable ; jamais de
+   `git push`, jamais de dépôt distant sans que je le demande, et alors toujours privé).
+3. `CADRAGE.md` à la racine, d'après `registre/cadrage.md` : type, puis les six sections, 80 à 120 lignes au plus.
+4. `AGENTS.md` du dépôt, 60 à 80 lignes au plus : but, phase POC et critère de sortie, stack et commandes, règles
    sensibles, secrets (noms), conventions de travail (langue, tests avant de conclure), renvoi vers `CADRAGE.md`
    (« lire avant toute nouvelle fonctionnalité ; le mettre à jour quand un choix change ») et vers
    `memoire/INDEX.md`. Pas de recopie du cadrage.
-4. `memoire/INDEX.md` (une ligne par axe) et `memoire/<axe>.md` (gabarit `modeles/memoire-axe.md`), dont le premier
+5. `memoire/INDEX.md` (une ligne par axe) et `memoire/<axe>.md` (gabarit `modeles/memoire-axe.md`), dont le premier
    « État au JJ/MM » est le cadrage.
-5. `registre/projets.md` : la fiche au format du modèle, **Phase : POC** ; `memoire/INDEX.md` de Polaris : une ligne.
+6. `registre/projets.md` : la fiche au format du modèle, **Phase : POC** ; `memoire/INDEX.md` de Polaris : une ligne.
    Ajoute aussi le projet à `config.json` (clé `projets`) pour que le lanceur le connaisse : montre-moi la ligne.
-6. Orion : **montre** d'abord la liste des cartes (une carte « Cadrer le POC de <nom> » de nature POC en « À
+7. Inscription au Kanban (accord séparé, sautable ; seulement si Orion est le système de suivi choisi : ne crée
+   pas un second tableau à côté d'un Kanban existant) : **montre** d'abord la liste des cartes (une carte « Cadrer le POC de <nom> » de nature POC en « À
    cadrer », plus les deux à quatre cartes du premier lot, avec projet, taille, nature, prochaine étape et
    **description** selon le modèle de `registre/kanban.md`), puis crée-les après mon accord, chacune avec `--body`.
    Un POC ne se lance jamais directement.
-7. Une ligne au journal des missions (mode 3) et un récapitulatif : ce qui a été créé, ce qui reste à décider, la
+8. Une ligne au journal des missions (mode 3, accord séparé : c'est une écriture dans `donnees/`) et un récapitulatif : ce qui a été créé, ce qui reste à décider, la
    prochaine commande utile (`/lancer`, `/quoi-faire`).
 
 ## Garde-fous

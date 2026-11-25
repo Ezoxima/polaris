@@ -1,6 +1,6 @@
 ---
 name: "creuser"
-description: "Entretien serré pour cadrer un besoin, un projet ou une décision — questions par tours, une recommandation par question, jusqu'à une compréhension partagée. Appelée par /nouveau-projet (mode complet), /conseil (mode dossier) et /note --creuser (mode léger) ; aussi quand l'utilisateur dit « creuse », « cuisine-moi » ou « challenge-moi »."
+description: "Entretien serré pour cadrer un besoin, un projet ou une décision — questions par tours (une seule à la fois par défaut), une recommandation par question, jusqu'à une compréhension partagée. Appelée par /nouveau-projet (mode complet), /conseil (mode dossier) et /note --creuser (mode léger) ; aussi quand l'utilisateur dit « creuse », « cuisine-moi » ou « challenge-moi »."
 ---
 <!-- Fichier généré par outils/generer_commandes.py à partir de commandes/creuser.md : ne pas modifier à la main. -->
 
@@ -15,7 +15,11 @@ La **frontière** est l'ensemble des décisions dont tous les prérequis sont r�
 sans deviner une réponse pas encore entendue.
 
 ## Tours
-- Un tour = la frontière, **trois questions au plus** (les plus structurantes d'abord ; le reste au tour suivant).
+- **Nombre de questions par tour** : lis `registre/preferences.md`, section « Dialogue », ligne « Questions par
+  tour ». Défaut si la ligne manque ou est illisible : **une seule** question à la fois, avec sa recommandation.
+  Annonce en début d'entretien la valeur retenue.
+- Un tour = la frontière, **au plus ce nombre de questions** (les plus structurantes d'abord ; le reste au tour
+  suivant). Avec une valeur de 1, la frontière se pose question après question.
 - Une question qui dépend d'une autre encore ouverte dans ce tour attend le tour suivant.
 - Format :
 
@@ -51,5 +55,7 @@ elle est difficile à défaire, elle surprendrait sans contexte, et c'est un vra
 - Frontière vide, plafond du mode atteint, ou « stop » de ta part.
 - Récapitulatif : un tableau point · état · réponse, puis les points Ouverts. **Je n'agis pas avant ton « ok » sur ce
   récapitulatif.**
-- Plafonds : `léger` un tour · `dossier` trois tours · `complet` jusqu'à la frontière vide (au-delà de six tours, je
-  fais le point et te demande si on continue).
+- Plafonds, en nombre de tours : `léger` un · `dossier` trois · `complet` jusqu'à la frontière vide (au-delà de six
+  tours, je fais le point et te demande si on continue). Avec une seule question par tour, un tour est court : le
+  plafond en tours reste une borne de sécurité, dis-moi si tu préfères en changer.
+- Je ne lance aucun agent et n'écris aucun fichier de synthèse sans ton accord ; je ne promets ni durée ni coût.

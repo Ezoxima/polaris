@@ -7,6 +7,8 @@ Usage (depuis la racine du dépôt) :
 
 Ce que l'outil fait :
 
+0. refuse (code 2, fichier intact) si `config.json` existe mais est invalide : il n'est JAMAIS remplacé par
+   l'exemple. S'il est absent, l'outil part de `config.exemple.json` et l'annonce avant toute écriture ;
 1. refuse si `config.json` contient déjà un tableau (`kanban.numero` ou `kanban.projet_id`) ;
 2. refuse si un tableau du même titre existe déjà chez ce propriétaire ;
 3. crée le tableau (`gh project create`, privé par défaut) ;
@@ -18,7 +20,8 @@ Ce que l'outil ne fait jamais : supprimer ou modifier un tableau, une carte ou u
 échoue en cours de route, il dit quel tableau est incomplet ; c'est à toi de le supprimer ou de le compléter.
 
 Statut : la forme des réponses de `gh project list` et `gh project field-list` a été vérifiée en lecture sur un vrai
-compte ; la création du tableau, des champs et la mise à jour de `Status` n'ont été testées qu'avec un `gh` simulé.
+compte, et la création réelle du tableau (champs et colonnes de `Status` compris) a été éprouvée le 25/11/2026.
+Les tests, eux, n'appellent jamais `gh` : il y est remplacé par un faux.
 
 Prérequis : `gh` installé et connecté, avec le droit `project` (`gh auth refresh -s project`).
 `gh` est appelé par `kanban.executer_gh`, remplacé par un faux dans les tests : aucun test n'écrit sur GitHub.
@@ -242,16 +245,27 @@ def ecrire_config(racine: Path, config: dict, section_kanban: dict) -> Path:
     return chemin
 
 
-def _config_ou_exemple(racine: Path) -> dict:
-    """config.json s'il existe, sinon le contenu de config.exemple.json, sinon un objet vide."""
+def _config_ou_exemple(racine: Path) -> tuple[dict, str | None]:
+    """(config, annonce). `config.json` valide : (config, None). Absent : l'exemple et une phrase qui l'annonce.
+
+    `config.json` présent mais invalide : lève commun.ErreurConfig (jamais de repli sur l'exemple, qui serait
+    ensuite réécrit par-dessus le fichier de l'utilisateur)."""
+    chemin = Path(racine) / commun.NOM_CONFIG
+    if chemin.exists():
+        return commun.charger_config(racine), None
     try:
-        return commun.charger_config(racine)
-    except commun.ErreurConfig:
-        pass
-    try:
-        return json.loads((Path(racine) / commun.NOM_CONFIG_EXEMPLE).read_text(encoding="utf-8"))
+        exemple = json.loads((Path(racine) / commun.NOM_CONFIG_EXEMPLE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return {}
+        exemple = None
+    if not isinstance(exemple, dict):
+        return (
+            {},
+            f"{commun.NOM_CONFIG} absent et {commun.NOM_CONFIG_EXEMPLE} illisible : {commun.NOM_CONFIG} sera créé vide, avec la seule clé `kanban`.",
+        )
+    return (
+        exemple,
+        f"{commun.NOM_CONFIG} absent : il sera créé à partir de {commun.NOM_CONFIG_EXEMPLE} (avec la clé `kanban`).",
+    )
 
 
 def main(
@@ -264,7 +278,14 @@ def main(
     ap.add_argument("--avec-variante", action="store_true", help="ajoute le champ texte facultatif « Variante »")
     a = ap.parse_args(argv)
 
-    config = _config_ou_exemple(racine)
+    try:
+        config, annonce = _config_ou_exemple(racine)
+    except commun.ErreurConfig as e:
+        print(
+            f"REFUS : {e} Rien n'est créé et {commun.NOM_CONFIG} est laissé intact : corrige-le d'abord.",
+            file=sys.stderr,
+        )
+        return 2
     existant = config.get("kanban") if isinstance(config.get("kanban"), dict) else {}
     proprietaire = a.proprietaire or existant.get("proprietaire") or PROPRIETAIRE_PAR_DEFAUT
 
@@ -274,6 +295,8 @@ def main(
         print(f"REFUS : {r}", file=sys.stderr)
         return 2
 
+    if annonce:
+        print(annonce)
     if a.dry_run:
         print(f"[dry-run] Orion : création du tableau GitHub Projects « {a.titre} » (propriétaire : {proprietaire}).")
         print("Rien n'est créé et `gh` n'est pas appelé. Commandes qui seraient lancées, dans l'ordre :")

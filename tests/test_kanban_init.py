@@ -123,6 +123,38 @@ def test_dry_run_refuse_si_la_config_a_deja_un_tableau(tmp_path, capsys):
     assert "contient déjà un tableau" in capsys.readouterr().err
 
 
+# ---------- config.json invalide ou absent ----------
+@pytest.mark.parametrize("contenu", ["pas du json {", "[1, 2]", ""])
+def test_config_invalide_est_refusee_et_laissee_intacte(tmp_path, capsys, contenu):
+    racine = depot(tmp_path)
+    (racine / commun.NOM_CONFIG).write_text(contenu, encoding="utf-8")
+    gh = FauxGh()
+    assert ki.main([], racine=racine, executer=gh) == 2
+    err = capsys.readouterr().err
+    assert "REFUS" in err and "intact" in err and gh.appels == []
+    assert (racine / commun.NOM_CONFIG).read_text(encoding="utf-8") == contenu
+
+
+def test_config_invalide_refusee_aussi_en_dry_run(tmp_path, capsys):
+    racine = depot(tmp_path)
+    (racine / commun.NOM_CONFIG).write_text("{", encoding="utf-8")
+    assert ki.main(["--dry-run"], racine=racine) == 2
+    assert "[dry-run]" not in capsys.readouterr().out
+
+
+def test_config_absente_part_de_l_exemple_et_l_annonce(tmp_path, capsys):
+    racine = depot(tmp_path)
+    assert ki.main(["--dry-run"], racine=racine) == 0
+    sortie = capsys.readouterr().out
+    assert "config.json absent : il sera créé à partir de config.exemple.json" in sortie
+    assert sortie.index("config.json absent") < sortie.index("[dry-run]")
+
+
+def test_config_et_exemple_absents_annonce_un_fichier_vide(tmp_path, capsys):
+    assert ki.main(["--dry-run"], racine=tmp_path) == 0
+    assert "sera créé vide" in capsys.readouterr().out
+
+
 # ---------- création ----------
 def test_creation_complete_et_config_ecrite(tmp_path, capsys):
     racine = depot(tmp_path)

@@ -59,5 +59,24 @@ Côté Claude Code, `git push` et les commandes git destructrices sont interdits
 mission, et le lanceur compare la référence distante avant et après. Côté Copilot, les interdits sont passés par
 `--deny-tool` ; ce mécanisme n'a pas été essayé en réel (voir [copilot.md](copilot.md)).
 
+### `--allow-all-tools` avec Copilot
+
+Par défaut, le lanceur passe à Copilot une liste précise d'outils autorisés (`--allow-tool`) et une liste d'interdits
+(`--deny-tool`). L'aide d'une version du CLI indique que `--allow-all-tools` pourrait être exigé en mode non
+interactif : incompatibilité **possible, non reproduite**. Polaris ne contourne pas cela en silence :
+
+- **Par défaut, rien ne change** : pas de `--allow-all-tools`. Si une mission copilot échoue avec un message qui le
+  réclame, le lanceur s'arrête, explique le choix (au terminal, au journal et dans le compte rendu) et **ne relance
+  pas**.
+- **Sur ton choix explicite**, `copilot.autoriser_tous_outils: true` dans `config.json` : le lanceur passe
+  `--allow-all-tools` **et garde tous les `--deny-tool`** (push, reset, rebase, clean, checkout, restore, stash…).
+  Le `--dry-run` l'affiche en avertissement.
+- **Le risque.** L'autorisation devient « tout sauf la liste d'interdits » : un outil ou une commande qui ne figure pas
+  dans la liste des interdits (écriture hors du projet, accès au réseau, commande système) n'est plus arrêté par la
+  liste d'outils. La protection ne repose plus que sur le brief et sur la relecture.
+- **Non éprouvé** : que `--deny-tool` l'emporte sur `--allow-all-tools` dans ta version. Fais l'essai décrit dans
+  [copilot.md](copilot.md) (dépôt de test sans remote) avant d'activer l'option. Si le refus n'est pas prioritaire,
+  laisse `false` et passe en mode 3.
+
 La liste d'outils n'est pas une garantie absolue : le brief reste la règle, et la relecture finale est
 indispensable.

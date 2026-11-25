@@ -77,6 +77,10 @@ python outils/veille.py --exemples --sans-ecrire # essai de la veille sur des do
 
 **Avec GitHub Copilot** : ouvre le dossier dans Copilot (CLI ou VS Code). `AGENTS.md` est le noyau et les commandes sont
 des skills dans `.github/skills/`. Plusieurs points ne sont pas encore testés : voir [docs/copilot.md](docs/copilot.md).
+Première configuration : [docs/installation.md, « Configurer Copilot »](docs/installation.md#3-bis-configurer-copilot).
+
+**Application Copilot seule (sans CLI)** : [docs/copilot.md, « Application seule »](docs/copilot.md#application-seule-sans-cli)
+(ce que l'application charge, l'essai pour le vérifier, le mode 2 par sous-session).
 
 **Personnaliser** : tes préférences (dialogue, quota, Kanban, fin de session, interdits ajoutés) tiennent dans
 [registre/preferences.md](registre/preferences.md) ; garde les valeurs par défaut ou modifie une ligne. Le socle des
@@ -117,8 +121,11 @@ polaris/
 ## Limites assumées
 
 - **Copilot n'a pas été essayé en réel.** Les options de `copilot -p` et les motifs d'outils viennent de la documentation
-  officielle ; chaque point non testé est listé dans [docs/copilot.md](docs/copilot.md). Aucune option d'effort ni de
-  budget n'y est documentée pour `copilot -p`.
+  officielle ; chaque point non testé est listé dans [docs/copilot.md](docs/copilot.md). Les options `--reasoning-effort`,
+  `--max-ai-credits`, `--usage-output-file` et `--allow-all-tools` ont été **observées** dans l'aide d'une version du CLI,
+  jamais essayées en mission réelle : le lanceur ne les envoie que si l'aide de ta version les liste, et
+  `--allow-all-tools` seulement sur choix explicite (`copilot.autoriser_tous_outils`). Que `--deny-tool` l'emporte sur
+  `--allow-all-tools` n'est pas éprouvé. Les crédits IA ne sont pas des USD, aucune conversion n'est faite.
 - **La création du tableau Orion a été essayée en réel le 25/11/2026**, sur un vrai compte GitHub : tableau privé créé,
   six colonnes, sept champs relus sur GitHub, identifiants écrits dans `config.json`, et refus d'un titre déjà pris.
   Les tests, eux, simulent `gh`. Lis le `--dry-run` (il n'appelle pas `gh` : il ne voit donc pas un titre déjà pris),

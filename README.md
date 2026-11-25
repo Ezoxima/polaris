@@ -27,8 +27,20 @@ flowchart TD
     V[Veille<br/>sans quota] -.->|alertes| P
 ```
 
-Trois noms : **Polaris** (l'orchestrateur), **Orion** (le Kanban) et **Nova** (une bibliothèque de méthodes
-facultative). Détail : [docs/architecture.md](docs/architecture.md).
+### Polaris, Orion, Nova
+
+Ces trois noms sont propres à ce projet ; ce ne sont pas des produits existants.
+
+- **Polaris** : l'orchestrateur, c'est-à-dire la session à qui tu parles et les règles de ce dépôt.
+- **Orion** : le nom donné au tableau Kanban, un GitHub Projects créé sur ton compte par `outils/kanban_init.py`.
+  Une carte par chantier, six colonnes (À cadrer, Prêt, En cours, En attente, En pause, Fait) et un champ
+  « Prochaine étape ». **C'est lui qui fait foi sur l'état du travail** : Polaris le lit en début de session et le
+  met à jour en fin de session. Tu peux l'ouvrir et déplacer les cartes toi-même dans GitHub.
+- **Nova** : une bibliothèque de méthodes facultative (par exemple le dépôt public
+  [ECC](https://github.com/affaan-m/ECC)). Polaris s'en sert pour citer une méthode dans un brief et fonctionne
+  sans elle.
+
+Détail : [docs/architecture.md](docs/architecture.md).
 
 ## Les trois modes d'exécution
 

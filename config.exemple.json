@@ -1,4 +1,5 @@
 {
+  "_commentaire": "EXEMPLE : les projets « boutique-web » et « pipeline-ventes » sont fictifs. Copie ce fichier en config.json, supprime-les et déclare les tiens (docs/installation.md, étape 3). Clés `_…` ignorées.",
   "moteur_par_defaut": "claude",
   "racine_projets": "~/projets",
   "defauts": {
@@ -13,7 +14,9 @@
       "haiku": "",
       "sonnet": "",
       "opus": ""
-    }
+    },
+    "credits_ia_max": null,
+    "autoriser_tous_outils": false
   },
   "projets": {
     "boutique-web": {

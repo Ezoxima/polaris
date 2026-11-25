@@ -91,6 +91,11 @@ CLI, **pas encore éprouvé**. Par rapport au lanceur, il manque :
 - l'écriture automatique du journal `donnees/missions.jsonl` : demande à la sous-session d'écrire sa ligne de fin, ou
   écris-la toi-même, avec ton accord (étape 7).
 
+Si tu utilises quand même le lanceur avec Copilot (CLI disponible), la configuration pas à pas est à l'étape
+« 3 bis. Configurer Copilot » de [installation.md](installation.md#3-bis-configurer-copilot). Dans l'application seule,
+ce que Copilot charge au démarrage et l'essai pour le vérifier sont dans
+[copilot.md](copilot.md#application-seule-sans-cli).
+
 Seul le lanceur automatique reste hors lot (voir la feuille de route du README).
 
 Honnêteté : le fonctionnement des commandes de Polaris dans l'application seule n'a **pas été éprouvé** (voir

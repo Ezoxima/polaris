@@ -51,6 +51,28 @@ Copy-Item config.exemple.json config.json
 
 Ne mets **jamais** de secret dans ce fichier : il ne contient que des chemins et des identifiants de tableau.
 
+### 3 bis. Configurer Copilot
+
+À faire si tu lances les missions avec Copilot (`--moteur copilot`, ou `moteur_par_defaut` à `copilot`). Chaque point
+renvoie à une clé de `config.json` ; le lanceur refuse en nommant la clé si elle manque.
+
+1. **Copie** le modèle : `Copy-Item config.exemple.json config.json` (si ce n'est pas déjà fait).
+2. **Moteur** : mets `"moteur_par_defaut": "copilot"` (ou passe `--moteur copilot` à chaque lancement).
+3. **Modèles** : renseigne `copilot.modeles` (`haiku`, `sonnet`, `opus`) avec les noms **exacts** que ta version
+   accepte. Pour les trouver : la commande `/model` dans Copilot, ou l'aide du CLI (`copilot --help`). N'invente pas un
+   nom : une valeur vide refuse la mission, une valeur fausse fera échouer Copilot.
+4. **Projets** : supprime les projets fictifs `boutique-web` et `pipeline-ventes` de la clé `projets`, et déclare le
+   tien : `cwd` (dossier de travail, relatif à `racine_projets`), `git_root` (le dépôt, sinon `null`) et
+   `autorise_copilot` (les outils de plus que le socle, par exemple `shell(python -m pytest)`). Le champ `autorise`
+   ne sert qu'à Claude.
+5. **Réglages facultatifs** (`copilot.credits_ia_max`, `copilot.autoriser_tous_outils`) : laisse `null` et `false`
+   tant que tu n'as pas lu [copilot.md](copilot.md) et [garde-fous.md](garde-fous.md).
+6. **Vérifie** : `python outils/lancer_mission.py <id> --moteur copilot --dry-run` affiche les options que ta version
+   propose et celles qui seraient transmises, sans rien lancer d'autre que la lecture de `copilot --help`.
+
+Application seule, sans CLI : cette étape ne s'applique pas ; voir
+[copilot.md, « Application seule »](copilot.md#application-seule-sans-cli).
+
 ## 4. Créer Orion, le Kanban
 
 ```powershell
@@ -142,8 +164,9 @@ modifier `AGENTS.md` et `docs/garde-fous.md`, en connaissance de cause et pour u
 **Claude Code** : ouvre une session dans le dossier de Polaris. `CLAUDE.md` charge `AGENTS.md` ; les commandes
 `/point`, `/quoi-faire`, `/note`, `/lancer`, `/go`, `/nouveau-projet`, `/conseil` et la skill `creuser` sont disponibles.
 
-**Copilot** : ouvre le dossier de Polaris dans Copilot (CLI ou VS Code). `AGENTS.md` est le noyau ; les commandes sont des
-skills (`.github/skills/`). Lis [copilot.md](copilot.md) : plusieurs points y sont marqués « non testé ».
+**Copilot** : ouvre le dossier de Polaris dans Copilot (CLI, VS Code ou application). `AGENTS.md` est le noyau et
+`.github/copilot-instructions.md` y renvoie ; les commandes sont des skills (`.github/skills/`). Lis
+[copilot.md](copilot.md) : plusieurs points y sont marqués « non testé ».
 
 **Modifier une commande** : édite sa source dans `commandes/<nom>.md`, puis `python outils/generer_commandes.py`. Ne
 modifie jamais `.claude/` ni `.github/skills/` à la main : l'intégration continue le détecte.
@@ -153,7 +176,9 @@ modifie jamais `.claude/` ni `.github/skills/` à la main : l'intégration conti
 | Symptôme | Cause probable | Solution |
 |---|---|---|
 | `config.json introuvable` | étape 3 non faite | `Copy-Item config.exemple.json config.json` |
-| `projet « x » absent de config.json` | le brief nomme un projet inconnu | l'ajouter à `projets` ou corriger la ligne `Carte : …` |
+| `projet « x » absent de config.json` | le brief nomme un projet inconnu | l'ajouter à `projets` (étape 3) ou corriger la ligne `Carte : …` |
+| `copilot : aucun nom de modèle pour « sonnet »` | `copilot.modeles` vide pour ce modèle | étape 3 bis, point 3 |
+| `copilot réclame --allow-all-tools` | ta version l'exige en mode non interactif | lire [garde-fous.md](garde-fous.md#--allow-all-tools-avec-copilot) avant de rien changer |
 | `commande « claude » introuvable` | moteur absent du `PATH` | l'installer, ou `--moteur copilot` |
 | `Kanban non configuré` | Orion pas créé | étape 4 |
 | `gh a échoué (code 1)` | `gh` non connecté ou droit `project` absent | `gh auth login`, puis `gh auth refresh -s project` |

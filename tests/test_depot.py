@@ -136,7 +136,7 @@ def test_version_du_changelog_et_de_pyproject_concordent():
     pyproject = (RACINE / "pyproject.toml").read_text(encoding="utf-8")
     version = re.search(r'^version = "([^"]+)"', pyproject, re.M)[1]
     premiere = re.search(r"^## \[(\d+\.\d+\.\d+)\]", (RACINE / "CHANGELOG.md").read_text(encoding="utf-8"), re.M)[1]
-    assert version == premiere == "0.2.0"
+    assert version == premiere == "0.2.1"
 
 
 def test_preferences_renvoient_aux_cles_de_config_sans_recopier_la_valeur():
@@ -216,3 +216,24 @@ def test_nouvel_id_main(tmp_path, capsys):
     assert nouvel_id.main(["--nb", "2"], racine=tmp_path) == 0
     assert len(capsys.readouterr().out.split()) == 2
     assert nouvel_id.main(["--nb", "0"], racine=tmp_path) == 2
+
+
+def test_instructions_copilot_renvoient_a_agents_md_et_restent_courtes():
+    texte = (RACINE / ".github" / "copilot-instructions.md").read_text(encoding="utf-8")
+    assert "AGENTS.md" in texte and "git push" in texte
+    assert len(texte.splitlines()) <= 30
+
+
+def test_la_config_exemple_signale_ses_projets_fictifs_et_les_reglages_copilot():
+    cfg = json.loads((RACINE / "config.exemple.json").read_text(encoding="utf-8"))
+    assert "fictifs" in cfg["_commentaire"]
+    assert cfg["copilot"]["credits_ia_max"] is None and cfg["copilot"]["autoriser_tous_outils"] is False
+    assert all(isinstance(v, dict) for v in cfg["projets"].values())
+
+
+def test_la_doc_copilot_cite_les_options_observees_et_les_garde_fous():
+    doc = (RACINE / "docs" / "copilot.md").read_text(encoding="utf-8")
+    for option in ("--reasoning-effort", "--max-ai-credits", "--usage-output-file", "--allow-all-tools"):
+        assert option in doc
+    assert "Application seule" in doc and "pas des USD" in doc
+    assert "autoriser_tous_outils" in (RACINE / "docs" / "garde-fous.md").read_text(encoding="utf-8")

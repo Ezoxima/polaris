@@ -3,6 +3,40 @@
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versions selon
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.2.1] - 2026-11-25
+
+Copilot, du clone neuf au premier lancement : options du CLI à jour, autorisation des outils clarifiée, parcours
+« application seule » explicite, configuration pas à pas. Les garde-fous ne sont pas affaiblis.
+
+### Ajouté
+
+- `lancer_mission.py` (moteur `copilot`) : lecture de `copilot --help` au lancement (commande locale, sans service) et
+  fonction pure `analyser_aide_copilot` ; transmission, seulement si l'aide les liste, de `--reasoning-effort` (effort
+  du brief, valeur refusée si l'aide ne la liste pas), `--max-ai-credits` (réglage `copilot.credits_ia_max`, jamais
+  converti depuis un budget en USD) et `--usage-output-file` (contenu résumé brut dans la sortie, le journal et le
+  compte rendu, sans interpréter de champ).
+- `copilot.autoriser_tous_outils` (`false` par défaut) : `--allow-all-tools` sur choix explicite, avec tous les
+  `--deny-tool` conservés et un avertissement au `--dry-run` ; une mission qui réclame `--allow-all-tools` s'arrête
+  avec une explication, sans relance. Risque documenté dans `docs/garde-fous.md`.
+- `--dry-run` : options Copilot détectées et transmises.
+- `.github/copilot-instructions.md` (renvoi vers `AGENTS.md`, garde-fous essentiels).
+- `docs/copilot.md` : section « Application seule », tableau des options (dans l'aide / utilisée par le lanceur),
+  essais supplémentaires. `docs/installation.md` : étape « 3 bis. Configurer Copilot ».
+
+### Modifié
+
+- Moteur `copilot` : un nom de modèle vide pour le modèle demandé refuse la mission en nommant
+  `copilot.modeles.<modèle>` (auparavant : modèle par défaut, avec un simple avertissement) ; un projet absent de la
+  config renvoie à l'étape d'installation.
+- `config.exemple.json` : commentaire `_commentaire` (projets fictifs), `copilot.credits_ia_max` et
+  `copilot.autoriser_tous_outils`.
+
+### Limites
+
+- Les options observées dans l'aide n'ont pas été essayées en mission réelle ; le format du fichier d'usage est
+  inconnu ; la priorité de `--deny-tool` sur `--allow-all-tools` n'est pas éprouvée (essais listés dans
+  `docs/copilot.md`).
+
 ## [0.2.0] - 2026-11-25
 
 Installation en environnement restreint : un guide dédié, et des outils qui n'écrasent, ne lisent ni n'écrivent plus

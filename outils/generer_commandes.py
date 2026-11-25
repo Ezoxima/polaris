@@ -4,6 +4,7 @@ Usage (depuis la racine du dépôt) :
 
     python outils/generer_commandes.py             # écrit les fichiers générés
     python outils/generer_commandes.py --verifier  # n'écrit rien ; code 1 si un fichier est désynchronisé
+    python outils/generer_commandes.py --forcer    # écrase aussi un fichier cible qui n'a pas été généré par cet outil
 
 Chaque `commandes/<nom>.md` commence par un en-tête simple entre deux lignes `---` :
 
@@ -25,6 +26,12 @@ Sorties :
 
 Les fichiers générés sont versionnés pour qu'un clone fonctionne sans rien lancer ; ils portent un commentaire
 « Fichier généré » et ne se modifient jamais à la main.
+
+Garde-fou : un fichier cible qui existe déjà SANS cette marque (une commande écrite à la main, ou venue d'une
+autre installation) n'est jamais écrasé. L'écriture est alors refusée en bloc (code 3, aucun fichier écrit,
+liste des fichiers en cause), sauf avec `--forcer`. Un fichier qui porte la marque mais dont le contenu a été
+modifié à la main est en revanche réécrit : la marque dit qu'il appartient à l'outil. `--verifier` signale les
+fichiers sans marque à part (« non généré »).
 """
 
 from __future__ import annotations
@@ -49,6 +56,14 @@ LIMITE_DESCRIPTION = 1024
 
 class ErreurSource(Exception):
     """Une source de `commandes/` est invalide ; le message dit laquelle et pourquoi."""
+
+
+class ErreurEcrasement(Exception):
+    """Des fichiers cibles existent sans la marque de l'outil ; rien n'a été écrit."""
+
+    def __init__(self, fichiers: list[str]):
+        super().__init__(", ".join(fichiers))
+        self.fichiers = fichiers
 
 
 @dataclass(frozen=True)
@@ -176,6 +191,16 @@ def _normaliser(texte: str) -> str:
     return texte.replace("\r\n", "\n")
 
 
+def _est_genere(fichier: Path) -> bool:
+    """Vrai si le fichier porte la marque de l'outil (donc qu'il a le droit de le réécrire)."""
+    return MARQUEUR in fichier.read_text(encoding="utf-8", errors="replace")
+
+
+def non_generes(racine: Path, attendus_: dict[str, str]) -> list[str]:
+    """Cibles qui existent déjà sans la marque de l'outil : elles ne sont pas à lui."""
+    return sorted(rel for rel in attendus_ if (racine / rel).is_file() and not _est_genere(racine / rel))
+
+
 def verifier(racine: Path, attendus_: dict[str, str]) -> list[str]:
     """Problèmes de synchronisation (liste vide si tout est à jour)."""
     problemes = []
@@ -183,14 +208,21 @@ def verifier(racine: Path, attendus_: dict[str, str]) -> list[str]:
         f = racine / rel
         if not f.is_file():
             problemes.append(f"manquant : {rel}")
+        elif not _est_genere(f):
+            problemes.append(f"non généré par l'outil (écrit à la main ?) : {rel}")
         elif _normaliser(f.read_text(encoding="utf-8")) != contenu:
             problemes.append(f"désynchronisé : {rel}")
     problemes += [f"orphelin (source supprimée) : {rel}" for rel in orphelins(racine, attendus_)]
     return problemes
 
 
-def ecrire(racine: Path, attendus_: dict[str, str]) -> list[str]:
-    """Écrit les fichiers qui diffèrent ; renvoie ceux qui ont changé."""
+def ecrire(racine: Path, attendus_: dict[str, str], *, forcer: bool = False) -> list[str]:
+    """Écrit les fichiers qui diffèrent ; renvoie ceux qui ont changé.
+
+    Sans `forcer`, lève ErreurEcrasement avant d'écrire quoi que ce soit si une cible existe sans la marque.
+    """
+    if not forcer and (etrangers := non_generes(racine, attendus_)):
+        raise ErreurEcrasement(etrangers)
     modifies = []
     for rel, contenu in sorted(attendus_.items()):
         f = racine / rel
@@ -205,6 +237,11 @@ def ecrire(racine: Path, attendus_: dict[str, str]) -> list[str]:
 def main(argv: list[str] | None = None, *, racine: Path = RACINE) -> int:
     ap = argparse.ArgumentParser(description="Génère les commandes Claude Code et Copilot depuis commandes/.")
     ap.add_argument("--verifier", action="store_true", help="n'écrit rien ; code 1 si un fichier est désynchronisé")
+    ap.add_argument(
+        "--forcer",
+        action="store_true",
+        help="écrase aussi les fichiers cibles qui n'ont pas été générés par cet outil (sinon refus, code 3)",
+    )
     a = ap.parse_args(argv)
     try:
         attendus_ = attendus(charger_sources(racine / "commandes"))
@@ -220,7 +257,21 @@ def main(argv: list[str] | None = None, *, racine: Path = RACINE) -> int:
             return 1
         print(f"OK : {len(attendus_)} fichiers générés à jour.")
         return 0
-    modifies = ecrire(racine, attendus_)
+    try:
+        modifies = ecrire(racine, attendus_, forcer=a.forcer)
+    except ErreurEcrasement as e:
+        print(
+            "REFUS : ces fichiers existent déjà et n'ont pas été générés par cet outil ; rien n'a été écrit :",
+            file=sys.stderr,
+        )
+        for rel in e.fichiers:
+            print(f"  {rel}", file=sys.stderr)
+        print(
+            "Compare-les à la main avec ce que l'outil produirait, fusionne ce qui doit l'être, "
+            "ou relance avec --forcer pour les écraser (sauvegarde d'abord).",
+            file=sys.stderr,
+        )
+        return 3
     for rel in modifies:
         print(f"écrit : {rel}")
     for rel in orphelins(racine, attendus_):

@@ -137,7 +137,8 @@ def test_ecrire_puis_verifier_puis_desynchroniser(tmp_path, capsys):
     assert gc.main([], racine=racine) == 0
     assert (racine / ".claude/commands/demo.md").is_file() and (racine / ".github/skills/creuser/SKILL.md").is_file()
     assert gc.main(["--verifier"], racine=racine) == 0
-    (racine / ".claude/commands/demo.md").write_text("modifié à la main", encoding="utf-8")
+    f = racine / ".claude/commands/demo.md"
+    f.write_text(f.read_text(encoding="utf-8") + "\nmodifié à la main", encoding="utf-8")  # marque conservée
     assert gc.main(["--verifier"], racine=racine) == 1
     assert "désynchronisé : .claude/commands/demo.md" in capsys.readouterr().err
     assert gc.main([], racine=racine) == 0 and gc.main(["--verifier"], racine=racine) == 0
@@ -180,3 +181,47 @@ def test_erreur_de_source_donne_le_code_2(tmp_path, capsys):
     racine = depot(tmp_path, demo="pas d'en-tête")
     assert gc.main([], racine=racine) == 2
     assert "ERREUR" in capsys.readouterr().err
+
+
+# ---------- ne jamais écraser un fichier qui n'est pas à l'outil ----------
+def test_un_fichier_homonyme_ecrit_a_la_main_est_preserve(tmp_path, capsys):
+    racine = depot(tmp_path, demo=source(), autre=source())
+    perso = racine / ".claude/commands/demo.md"
+    perso.parent.mkdir(parents=True)
+    perso.write_text("ma commande à moi", encoding="utf-8")
+    assert gc.main([], racine=racine) == 3
+    err = capsys.readouterr().err
+    assert "REFUS" in err and ".claude/commands/demo.md" in err
+    assert perso.read_text(encoding="utf-8") == "ma commande à moi"
+    assert not (racine / ".claude/commands/autre.md").exists()  # rien n'est écrit, même pour les autres
+    assert not (racine / ".github").exists()
+
+
+def test_forcer_ecrase_le_fichier_homonyme(tmp_path):
+    racine = depot(tmp_path, demo=source())
+    perso = racine / ".claude/commands/demo.md"
+    perso.parent.mkdir(parents=True)
+    perso.write_text("ma commande à moi", encoding="utf-8")
+    assert gc.main(["--forcer"], racine=racine) == 0
+    assert gc.MARQUEUR in perso.read_text(encoding="utf-8")
+    assert gc.main(["--verifier"], racine=racine) == 0
+
+
+def test_fichier_genere_modifie_a_la_main_reste_reecrit(tmp_path):
+    racine = depot(tmp_path, demo=source())
+    gc.main([], racine=racine)
+    f = racine / ".claude/commands/demo.md"
+    f.write_text(f.read_text(encoding="utf-8") + "ajout manuel\n", encoding="utf-8")
+    assert gc.main([], racine=racine) == 0
+    assert "ajout manuel" not in f.read_text(encoding="utf-8")
+
+
+def test_verifier_signale_a_part_le_fichier_non_genere(tmp_path, capsys):
+    racine = depot(tmp_path, demo=source())
+    perso = racine / ".claude/commands/demo.md"
+    perso.parent.mkdir(parents=True)
+    perso.write_text("à moi", encoding="utf-8")
+    assert gc.main(["--verifier"], racine=racine) == 1
+    err = capsys.readouterr().err
+    assert "non généré par l'outil" in err and "désynchronisé : .claude/commands/demo.md" not in err
+    assert perso.read_text(encoding="utf-8") == "à moi"

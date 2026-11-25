@@ -3,6 +3,27 @@
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versions selon
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.1.2] - 2026-11-25
+
+Corrections issues d'un test d'installation sur un clone vierge.
+
+### Corrigé
+
+- Une mission lancée depuis une session de l'app de bureau Claude Code plantait au premier lancement
+  (`Failed to start inspector … EADDRINUSE`) : le `claude` enfant héritait de `BUN_INSPECT`. Le processus lancé par
+  `outils/lancer_mission.py` reçoit désormais un environnement sans `BUN_INSPECT*` ni options `--inspect*` de
+  `NODE_OPTIONS` (le reste de `NODE_OPTIONS` est conservé) ; le `--dry-run` signale ce qui est retiré.
+- Le compte rendu de mission pouvait proposer une colonne inexistante (« Terminé ») : le pied de prompt liste
+  désormais les six colonnes du Kanban, générées depuis `kanban.COLONNES`.
+
+### Modifié
+
+- Documentation : la création du tableau Orion a été essayée en réel le 25/11/2026 (README « Limites assumées »,
+  `docs/installation.md` étape 4) ; précision que le `--dry-run` de `kanban_init.py` ne détecte pas un titre déjà pris ;
+  ligne de dépannage pour `Failed to start inspector`.
+- `pyproject.toml` : version 0.1.2.
+- Tests : variables de débogueur (fonction pure, environnement réellement transmis, `--dry-run`) et colonnes du prompt.
+
 ## [0.1.1] - 2026-11-25
 
 ### Ajouté

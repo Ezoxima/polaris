@@ -11,7 +11,8 @@ Sources lues (toutes en lecture seule) :
   ignorée avec un message « non vérifié sur ce système » ;
 - `donnees/echeances.json` : les échéances datées ;
 - `donnees/missions.jsonl` : le journal des missions ;
-- les cartes « En cours » d'Orion (`gh`, via `kanban.lire_cartes`), si `config.json` désigne un tableau.
+- les cartes d'Orion (`gh`, via `kanban.lire_cartes`), si `config.json` désigne un tableau : les cartes « En cours »
+  sont affichées à titre d'information (aucun seuil, aucune alerte) et servent à repérer une alerte déjà couverte.
 
 Une source absente n'est pas une erreur : elle est signalée par une note. Une source illisible est une erreur de
 lecture (ligne `!`), les autres sources continuent.
@@ -58,7 +59,6 @@ ID_REFUS_SESSION = 332  # Planificateur : tâche non lancée, utilisateur non co
 JOURNAL_PLANIFICATEUR = "Microsoft-Windows-TaskScheduler/Operational"
 JOURS_ATTENTION = 7  # échéance dans 7 jours ou moins : attention
 JOURS_INFO = 14  # 14 jours ou moins : info
-MAX_EN_COURS = kanban.MAX_EN_COURS  # au-delà (strictement) : info
 ANNEE_JAMAIS = 2000  # Windows donne 1999 pour « jamais lancée »
 
 # « en cours » (0x41301), « désactivée » (0x41302), « jamais lancée » (0x41303) : pas des échecs
@@ -628,21 +628,14 @@ def alertes_journal(lignes: list[dict], maintenant: datetime) -> list[dict]:
     return alertes
 
 
-# ---------- règle 6 : cartes En cours ----------
-def alertes_cartes(cartes: list[dict]) -> list[dict]:
+# ---------- règle 6 : cartes d'Orion ----------
+def note_cartes_en_cours(cartes: list[dict]) -> str:
+    """Information seulement : les cartes « En cours » (aucun seuil, aucune alerte)."""
     en_cours = kanban.cartes_en_cours(cartes)
-    if len(en_cours) <= MAX_EN_COURS:
-        return []
+    if not en_cours:
+        return "Orion : aucune carte « En cours »."
     titres = " ; ".join(_propre(kanban.titre_carte(c), 60) for c in en_cours)
-    return [
-        _alerte(
-            "cartes:en_cours",
-            "info",
-            "cartes",
-            f"{len(en_cours)} cartes « En cours » hors POC",
-            f"Maximum {MAX_EN_COURS} : {titres}.",
-        )
-    ]
+    return f"Orion : {len(en_cours)} carte(s) « En cours » : {titres}."
 
 
 def retirer_cartes_faites(alertes: list[dict], cartes: list[dict]) -> list[dict]:
@@ -754,10 +747,11 @@ def analyser(
         if exemples:
             notes.append("mode exemples : cartes d'Orion non lues.")
         elif not config_kanban or not config_kanban.get("numero"):
-            notes.append("Kanban non configuré (config.json) : règle des cartes « En cours » ignorée.")
+            notes.append("Kanban non configuré (config.json) : cartes d'Orion non lues.")
         else:
             cartes, _ = kanban.lire_cartes(executer_gh or kanban.executer_gh, config_kanban)
-            alertes = retirer_cartes_faites(alertes, cartes) + alertes_cartes(cartes)
+            alertes = retirer_cartes_faites(alertes, cartes)
+            notes.append(note_cartes_en_cours(cartes))
     except kanban.ErreurGh as exc:
         alertes.append(
             _alerte(
@@ -765,7 +759,7 @@ def analyser(
                 "info",
                 "cartes",
                 "Cartes illisibles",
-                f"Règle « trop de cartes En cours » ignorée : {exc}",
+                f"Cartes d'Orion non lues : {exc}",
             )
         )
     except Exception as exc:  # noqa: BLE001
@@ -775,7 +769,7 @@ def analyser(
                 "info",
                 "cartes",
                 "Cartes illisibles",
-                f"Règle « trop de cartes En cours » ignorée (erreur interne {type(exc).__name__}).",
+                f"Cartes d'Orion non lues (erreur interne {type(exc).__name__}).",
             )
         )
 

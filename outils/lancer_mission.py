@@ -22,8 +22,8 @@ Fonctionnement :
 - `--parallele` : les missions du lot partent en même temps, un thread par mission. **Une seule mission à la fois par
   projet** : la clé de projet est `git_root` de `config.json` s'il existe, sinon `cwd`. Deux missions du lot sur le
   même projet = refus avant tout lancement (code 2). Plafond : 100 missions simultanées.
-- Le plafond des cartes « En cours » hors POC (3 par défaut) est contrôlé mission par mission pour une chaîne ou une
-  mission seule ; `--parallele` le **lève** (choix explicite) et ne lit pas Orion.
+- Aucun plafond de cartes « En cours » : le lanceur ne lit pas Orion. Seule règle mécanique entre missions : une seule
+  à la fois par projet. L'ancienne clé `defauts.max_en_cours` de `config.json` est ignorée, et une ligne l'annonce.
 - `--dry-run` : affiche le lot, le dossier de travail, le modèle, l'effort, les outils autorisés, la durée, le budget et
   les contrôles, sans rien lancer ni rien écrire (journal et comptes rendus intacts).
 - Le brief est lu dans `briefs/<id>.md` et transmis à la session : elle ne peut pas lire hors de son dépôt. Sa
@@ -37,7 +37,7 @@ Fonctionnement :
 Refus (code 2, rien n'est lancé) : identifiant invalide, brief introuvable ou illisible, projet absent de
 `config.json`, mode différent de 2, effort au-delà du plafond du modèle fort, durée absente ou au-delà du plafond, la
 même mission déjà en cours, une autre mission en cours **sur le même projet** (journal : `lancee` sans fin depuis moins
-de 3 h), trop de cartes « En cours » hors POC (sauf `--parallele`), fichier `donnees/STOP` présent, moteur absent.
+de 3 h), fichier `donnees/STOP` présent, moteur absent.
 
 Écrit : `donnees/missions.jsonl` (lancee, puis terminee, echouee ou arretee ; une écriture par ligne sous verrou) et
 `briefs/<id>-compte-rendu.md` (un compte rendu existant est archivé, jamais écrasé).
@@ -50,7 +50,7 @@ tourne.
 Codes de sortie : 0 tout est terminé · 1 au moins une mission n'a pas abouti · 2 refus.
 
 Jamais de `git push` : interdit dans la liste d'outils de la mission, et contrôlé (référence distante avant et après).
-Les tests n'appellent ni `claude`, ni `copilot`, ni `gh` : exécuteur et lecture d'Orion sont injectés.
+Les tests n'appellent ni `claude`, ni `copilot`, ni `gh` : l'exécuteur est injecté, et le lanceur n'appelle jamais `gh`.
 """
 
 from __future__ import annotations
@@ -178,7 +178,6 @@ class Sortie(NamedTuple):
 
 
 Executeur = Callable[[list, str, str, float], Sortie]
-LecteurCartes = Callable[[], "list[dict]"]
 
 
 class Refus(Exception):
@@ -687,21 +686,6 @@ def plan_jour(instant: dt.datetime | None = None) -> str:
     return (instant or maintenant_utc()).astimezone().strftime("%d/%m")
 
 
-# ---------- orion ----------
-def lire_cartes_orion(config_kanban: dict) -> list[dict]:
-    """Lecture réelle des cartes d'Orion (`gh project item-list`, lecture seule)."""
-    try:
-        cartes, tronque = kanban.lire_cartes(kanban.executer_gh, config_kanban)
-    except kanban.ErreurGh as e:
-        raise Refus(f"Orion illisible, impossible de compter les cartes « En cours » : {e}") from None
-    if tronque:
-        print(
-            f"! Orion : plus de {kanban.LIMITE_CARTES} cartes, le comptage des « En cours » peut être incomplet.",
-            file=sys.stderr,
-        )
-    return cartes
-
-
 # ---------- git ----------
 def git_reel(depot: str, *args: str) -> str:
     try:
@@ -824,14 +808,12 @@ def maintenir_eveil(actif: bool) -> None:
 class Contexte:
     racine: Path
     executer: Executeur = executer_processus
-    lire_cartes: LecteurCartes = field(default=lambda: [])
     maintenant: Callable[[], dt.datetime] = maintenant_utc
     dormir: Callable[[float], None] = time.sleep
     git: Callable = git_reel
     eveil: Callable[[bool], None] = maintenir_eveil
     trouver: Callable[[str], str | None] = shutil.which
     aide_copilot: Callable[[], str] = lire_aide_copilot
-    max_en_cours: int = kanban.MAX_EN_COURS
     verrou_journal: threading.Lock = field(default_factory=threading.Lock, repr=False)
     verrou_sortie: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
@@ -861,13 +843,11 @@ class Contexte:
 
 
 # ---------- contrôles avant lancement ----------
-def verifier_lancement(
-    plan: Plan, ctx: Contexte, cles: dict[str, str] | None = None, plafond_cartes: bool = True
-) -> list[str]:
+def verifier_lancement(plan: Plan, ctx: Contexte, cles: dict[str, str] | None = None) -> list[str]:
     """Contrôles qui dépendent de l'état du moment ; lève Refus. Renvoie les contrôles réussis (pour l'affichage).
 
     Une autre mission en cours ne refuse que si elle vise le même projet (même clé : `git_root`, sinon `cwd`).
-    `plafond_cartes=False` (option `--parallele`) lève le plafond des cartes « En cours » : Orion n'est pas lu."""
+    Aucune lecture d'Orion : le Kanban n'intervient pas dans le lancement."""
     if ctx.stop.exists():
         raise Refus(f"fichier STOP présent ({ctx.stop}) : supprime-le pour relancer.")
     if ctx.trouver(plan.commande[0]) is None:
@@ -895,31 +875,8 @@ def verifier_lancement(
             f"({plan.projet}, dépôt {plan.cle}), lancée le {commun.iso(autre[1])}, aucune fin au journal ; "
             f"au bout de {SEUIL_EN_COURS_H} h le blocage tombe."
         )
-    sans_autre = "aucune autre mission en cours sur ce projet"
     notes_journal = [avertissement_journal] if avertissement_journal else []
-    if not plafond_cartes:
-        return [
-            *notes_journal,
-            sans_autre,
-            f"plafond des {ctx.max_en_cours} cartes « En cours » levé (--parallele), Orion non lu",
-        ]
-    try:
-        cartes = ctx.lire_cartes()
-    except Refus:
-        raise
-    except Exception as e:  # noqa: BLE001
-        raise Refus(f"Orion illisible, impossible de compter les cartes « En cours » ({type(e).__name__}).") from None
-    en_cours = kanban.cartes_en_cours(cartes, plan.carte)
-    if len(en_cours) >= ctx.max_en_cours:
-        raise Refus(
-            f"{len(en_cours)} cartes « En cours » hors POC (maximum {ctx.max_en_cours}) : "
-            + " ; ".join(kanban.titre_carte(c) for c in en_cours)
-        )
-    return [
-        *notes_journal,
-        sans_autre,
-        f"Orion : {len(en_cours)} carte(s) « En cours » hors POC (< {ctx.max_en_cours})",
-    ]
+    return [*notes_journal, "aucune autre mission en cours sur ce projet"]
 
 
 # ---------- résultat de la session ----------
@@ -1172,7 +1129,6 @@ def main(
     *,
     racine: Path = RACINE,
     executer: Executeur | None = None,
-    lire_cartes: LecteurCartes | None = None,
     maintenant: Callable[[], dt.datetime] | None = None,
     dormir: Callable[[float], None] | None = None,
     git: Callable | None = None,
@@ -1192,8 +1148,7 @@ def main(
     ap.add_argument(
         "--parallele",
         action="store_true",
-        help="lance les missions en même temps (un seul projet à la fois ; deux missions du même projet = refus) ; "
-        "lève le plafond des cartes « En cours »",
+        help="lance les missions en même temps (une seule par projet : deux missions du même projet = refus)",
     )
     a = ap.parse_args(argv)
 
@@ -1206,14 +1161,15 @@ def main(
     except Refus as r:
         print(f"REFUS : {r}", file=sys.stderr)
         return 2
-    config_kanban = config.get("kanban") if isinstance(config.get("kanban"), dict) else {}
-    ctx.lire_cartes = lambda: lire_cartes_orion(config_kanban)
-    maxi = config.get("defauts", {}).get("max_en_cours")
-    if isinstance(maxi, int) and not isinstance(maxi, bool) and maxi > 0:
-        ctx.max_en_cours = maxi
+    defauts = config.get("defauts")
+    if isinstance(defauts, dict) and "max_en_cours" in defauts:
+        print(
+            "! config.json : `defauts.max_en_cours` est ignoré (plus de plafond de cartes « En cours » depuis la "
+            "0.2.2 ; seule reste la règle « une mission à la fois par projet »). Tu peux retirer la clé.",
+            file=sys.stderr,
+        )
     for nom, valeur in (
         ("executer", executer),
-        ("lire_cartes", lire_cartes),
         ("maintenant", maintenant),
         ("dormir", dormir),
         ("git", git),
@@ -1255,7 +1211,7 @@ def main(
             code = 2
         for p in plans:
             try:
-                controles = verifier_lancement(p, ctx, cles, plafond_cartes=not a.parallele)
+                controles = verifier_lancement(p, ctx, cles)
             except Refus as r:
                 print(f"REFUS {p.mission} : {r}", file=sys.stderr)
                 controles, code = [], 2
@@ -1265,7 +1221,7 @@ def main(
     if a.parallele:  # tous les contrôles d'abord : un refus = rien ne part
         for p in plans:
             try:
-                verifier_lancement(p, ctx, cles, plafond_cartes=False)
+                verifier_lancement(p, ctx, cles)
             except Refus as r:
                 print(f"REFUS {p.mission} : {r}", file=sys.stderr)
                 return 2

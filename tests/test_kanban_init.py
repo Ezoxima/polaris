@@ -300,12 +300,12 @@ def test_lire_cartes_erreurs_courtes(executeur, fragment):
         kanban.lire_cartes(executeur, {"numero": 1})
 
 
-def test_cartes_en_cours_hors_poc_et_hors_carte_de_la_mission():
+def test_cartes_en_cours_information_seulement():
     cartes = [
         {"title": "A", "status": "En cours", "nature": "Chantier"},
-        {"title": "B", "status": "En cours", "nature": "POC"},
-        {"title": " c ", "status": "En cours"},
+        {"title": "B", "status": " En cours ", "nature": "POC"},
+        {"title": "C"},
         {"title": "D", "status": "Prêt"},
     ]
-    assert [c["title"] for c in kanban.cartes_en_cours(cartes)] == ["A", " c "]
-    assert [c["title"] for c in kanban.cartes_en_cours(cartes, "C")] == ["A"]
+    assert [c["title"] for c in kanban.cartes_en_cours(cartes)] == ["A", "B"]
+    assert not hasattr(kanban, "MAX_EN_COURS")

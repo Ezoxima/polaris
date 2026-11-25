@@ -6,8 +6,7 @@
     "budget_usd_par_minute": 0.2,
     "budget_usd_min": 3,
     "budget_usd_max": 20,
-    "duree_max_plafond_min": 120,
-    "max_en_cours": 3
+    "duree_max_plafond_min": 120
   },
   "copilot": {
     "modeles": {

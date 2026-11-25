@@ -17,7 +17,6 @@ COLONNES = ("À cadrer", "Prêt", "En cours", "En attente", "En pause", "Fait")
 NATURES = ("Chantier", "Démarche", "Décision", "Script", "POC")
 TAILLES = ("XS", "S", "M", "L", "XL")
 PHASES = ("POC", "MVP", "Produit final")
-MAX_EN_COURS = 3  # cartes « En cours » hors nature POC ; réglable par `defauts.max_en_cours` dans config.json
 LIMITE_CARTES = 500
 DELAI_GH_S = 30
 
@@ -116,23 +115,9 @@ def lire_cartes(executer: Executeur, config_kanban: dict) -> tuple[list[dict], b
     return cartes, isinstance(total, int) and total > len(donnees)
 
 
-def _titre(valeur: object) -> str:
-    return " ".join(valeur.split()).casefold() if isinstance(valeur, str) else ""
-
-
-def cartes_en_cours(cartes: list[dict], carte_mission: str | None = None) -> list[dict]:
-    """Cartes « En cours » hors nature POC, hors la carte de la mission elle-même (comparée par son titre)."""
-    trouvees = []
-    for c in cartes:
-        statut, nature = c.get("status"), c.get("nature")
-        if not (isinstance(statut, str) and statut.strip() == "En cours"):
-            continue
-        if isinstance(nature, str) and nature.strip() == "POC":
-            continue
-        if carte_mission and _titre(c.get("title")) == _titre(carte_mission):
-            continue
-        trouvees.append(c)
-    return trouvees
+def cartes_en_cours(cartes: list[dict]) -> list[dict]:
+    """Cartes « En cours » (information seulement : aucune règle ni seuil n'en dépend)."""
+    return [c for c in cartes if isinstance(c.get("status"), str) and c["status"].strip() == "En cours"]
 
 
 def titre_carte(carte: dict) -> str:

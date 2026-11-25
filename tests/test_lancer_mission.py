@@ -7,6 +7,7 @@ qu'un `except Exception` du code testé ne l'avale pas). Exécuteur, lecture d'O
 
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import subprocess
@@ -166,10 +167,6 @@ class FauxGit:
         raise AssertionError(f"commande git inattendue : {args}")
 
 
-def carte(titre, statut="En cours", nature="Chantier"):
-    return {"title": titre, "status": statut, "nature": nature}
-
-
 class Attentes(list):
     def __call__(self, secondes):
         self.append(secondes)
@@ -179,11 +176,9 @@ def aller(
     racine,
     *ids,
     executer=None,
-    cartes=(),
     git=None,
     dormir=None,
     argv=(),
-    lire_cartes=None,
     trouver=None,
     aide="",
 ):
@@ -192,7 +187,6 @@ def aller(
         [*ids, *argv],
         racine=racine,
         executer=executer,
-        lire_cartes=lire_cartes or (lambda: list(cartes)),
         maintenant=lambda: MAINT,
         dormir=dormir if dormir is not None else Attentes(),
         git=git or FauxGit(),
@@ -528,7 +522,6 @@ def test_claude_ne_lit_pas_l_aide_de_copilot(tmp_path):
     code = lm.main(
         [ID, "--dry-run"],
         racine=monde(tmp_path),
-        lire_cartes=lambda: [],
         maintenant=lambda: MAINT,
         trouver=lambda n: "/x",
         aide_copilot=lambda: appels.append(1) or "",
@@ -633,37 +626,43 @@ def test_stop_refuse(tmp_path, capsys):
     assert "STOP" in capsys.readouterr().err and faux.appels == []
 
 
-# ---------- plafond des cartes En cours ----------
-def test_trois_cartes_en_cours_refusent(tmp_path, capsys):
+# ---------- plus de plafond « En cours » : Orion n'est jamais lu ----------
+class LecteurInterdit:
+    """Remplace le lecteur réel de `gh` : tout appel fait échouer le test."""
+
+    def __call__(self, *a, **k):
+        raise AssertionError("le lanceur ne doit jamais lire Orion")
+
+
+@pytest.fixture
+def sans_orion(monkeypatch):
+    monkeypatch.setattr(lm.kanban, "executer_gh", LecteurInterdit())
+    monkeypatch.setattr(lm.kanban, "lire_cartes", LecteurInterdit())
+    monkeypatch.setattr(lm.kanban, "lire_json", LecteurInterdit())
+
+
+def test_lancement_et_dry_run_ne_lisent_pas_orion(tmp_path, sans_orion):
     racine = monde(tmp_path)
-    cartes = [carte("A"), carte("B"), carte("C")]
-    assert aller(racine, ID, executer=FauxExecuteur(), cartes=cartes) == 2
-    assert "3 cartes « En cours »" in capsys.readouterr().err
+    assert aller(racine, ID, argv=["--dry-run"]) == 0
+    assert aller(racine, ID, executer=FauxExecuteur()) == 0
+    (racine / "briefs" / f"{ID2}.md").write_text(brief(projet="autre"), encoding="utf-8")
+    assert aller(racine, ID2, ID, executer=FauxExecuteur(), argv=["--parallele"]) == 0
 
 
-def test_poc_et_carte_de_la_mission_ne_comptent_pas(tmp_path):
-    racine = monde(tmp_path)
-    cartes = [carte("A"), carte("B"), carte("C", nature="POC"), carte("Ajouter un export")]
-    assert aller(racine, ID, executer=FauxExecuteur(), cartes=cartes) == 0
+def test_le_lanceur_n_a_plus_de_lecteur_de_cartes():
+    assert not hasattr(lm, "lire_cartes_orion") and not hasattr(lm.Contexte, "max_en_cours")
+    assert "lire_cartes" not in inspect.signature(lm.main).parameters
 
 
-def test_plafond_reglable_par_la_config(tmp_path):
+def test_cle_max_en_cours_ignoree_et_annoncee(tmp_path, capsys):
     racine = monde(tmp_path, defauts={"max_en_cours": 1})
-    assert aller(racine, ID, executer=FauxExecuteur(), cartes=[carte("A")]) == 2
+    assert aller(racine, ID, executer=FauxExecuteur()) == 0
+    assert "`defauts.max_en_cours` est ignoré" in capsys.readouterr().err
 
 
-def test_orion_illisible_refuse(tmp_path, capsys):
-    def casse():
-        raise lm.Refus("Orion illisible, impossible de compter les cartes « En cours » : boum")
-
-    racine = monde(tmp_path)
-    assert aller(racine, ID, executer=FauxExecuteur(), lire_cartes=casse) == 2
-    assert "Orion illisible" in capsys.readouterr().err
-
-
-def test_lecture_reelle_d_orion_non_configure(tmp_path):
-    with pytest.raises(lm.Refus, match="Orion illisible"):
-        lm.lire_cartes_orion({})
+def test_sans_la_cle_max_en_cours_rien_n_est_annonce(tmp_path, capsys):
+    assert aller(monde(tmp_path), ID, executer=FauxExecuteur()) == 0
+    assert "max_en_cours" not in capsys.readouterr().err
 
 
 # ---------- dry-run ----------
@@ -819,8 +818,7 @@ def test_parallele_projets_differents(tmp_path, capsys):
     racine = monde(tmp_path)
     (racine / "briefs" / f"{ID2}.md").write_text(brief(projet="autre"), encoding="utf-8")
     faux = FauxExecuteur()
-    cartes = [carte("A"), carte("B"), carte("C")]  # le plafond est levé par --parallele
-    assert aller(racine, ID, ID2, executer=faux, argv=["--parallele"], cartes=cartes) == 0
+    assert aller(racine, ID, ID2, executer=faux, argv=["--parallele"]) == 0
     sortie_ = capsys.readouterr().out
     assert len(faux.appels) == 2 and "Bilan" in sortie_ and f"[{ID}]" in sortie_
     evenements = [(e["mission"], e["evenement"]) for e in journal(racine)]

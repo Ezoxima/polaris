@@ -418,16 +418,17 @@ def test_journal_corrompu_ou_absent(tmp_path):
 
 
 # ---------- cartes ----------
-def test_cartes_en_cours_bornes(tmp_path):
-    trois = [carte("A"), carte("B"), carte("C")]
-    assert lancer(tmp_path / "a", gh=faux_gh(trois))["alertes"] == []
-    r = lancer(tmp_path / "b", gh=faux_gh([*trois, carte("D")]))
-    assert alerte(r, "cartes:en_cours")["niveau"] == "info"
+def test_cartes_en_cours_affichees_sans_seuil_ni_alerte(tmp_path):
+    cartes = [carte(t) for t in "ABCDEF"] + [carte("P", nature="POC"), carte("Z", statut="Prêt")]
+    r = lancer(tmp_path, gh=faux_gh(cartes))
+    assert r["alertes"] == []
+    note = next(n for n in r["notes"] if "« En cours »" in n)
+    assert "7 carte(s)" in note and "Z" not in note.split(":", 1)[1]
 
 
-def test_cartes_poc_et_autres_colonnes_ne_comptent_pas(tmp_path):
-    cartes = [carte("A"), carte("B"), carte("C"), carte("P", nature="POC"), carte("D", statut="Prêt")]
-    assert lancer(tmp_path, gh=faux_gh(cartes))["alertes"] == []
+def test_aucune_carte_en_cours_est_une_note(tmp_path):
+    r = lancer(tmp_path, gh=faux_gh([carte("D", statut="Prêt")]))
+    assert r["alertes"] == [] and any("aucune carte « En cours »" in n for n in r["notes"])
 
 
 @pytest.mark.parametrize(

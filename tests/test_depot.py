@@ -1,0 +1,145 @@
+"""Tests d'hygiène du dépôt : liens, fichiers vides, reste de travail, fichiers privés non suivis, outils communs."""
+
+from __future__ import annotations
+
+import json
+import re
+import subprocess
+from datetime import date
+from pathlib import Path
+
+import pytest
+
+import commun
+import nouvel_id
+
+RACINE = Path(__file__).resolve().parent.parent
+LIEN = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+BLOC_CODE = re.compile(r"```.*?```", re.S)
+
+
+def suivis() -> list[Path]:
+    sortie = subprocess.run(["git", "-C", str(RACINE), "ls-files", "-z"], capture_output=True, check=True).stdout
+    return [RACINE / n for n in sortie.decode("utf-8").split("\0") if n]
+
+
+def documents() -> list[Path]:
+    return [p for p in suivis() if p.suffix == ".md"]
+
+
+# ---------- liens ----------
+@pytest.mark.parametrize("doc", documents(), ids=lambda p: p.relative_to(RACINE).as_posix())
+def test_liens_relatifs_valides(doc):
+    texte = BLOC_CODE.sub("", doc.read_text(encoding="utf-8"))
+    morts = []
+    for cible in LIEN.findall(texte):
+        if re.match(r"^(https?:|mailto:|#)", cible):
+            continue
+        chemin = cible.split("#")[0]
+        if chemin and not (doc.parent / chemin).resolve().exists():
+            morts.append(cible)
+    assert morts == [], f"liens morts dans {doc.relative_to(RACINE)} : {morts}"
+
+
+# ---------- hygiène ----------
+def test_aucun_fichier_vide():
+    vides = [p.relative_to(RACINE).as_posix() for p in suivis() if p.stat().st_size == 0]
+    assert vides == []
+
+
+def test_pas_de_reste_de_travail_a_faire():
+    marqueurs = re.compile(r"\b(TODO|FIXME|XXX|WIP)\b")
+    trouves = []
+    for p in suivis():
+        if p.suffix in {".md", ".py", ".json", ".toml", ".yml", ".jsonl"} and p.name != "test_depot.py":
+            if marqueurs.search(p.read_text(encoding="utf-8")):
+                trouves.append(p.relative_to(RACINE).as_posix())
+    assert trouves == []
+
+
+def test_les_fichiers_prives_ne_sont_pas_suivis():
+    noms = {p.relative_to(RACINE).as_posix() for p in suivis()}
+    assert "config.json" not in noms and ".env" not in noms
+    assert not any(n.startswith("briefs/") for n in noms)
+    donnees = {n for n in noms if n.startswith("donnees/")}
+    assert donnees == {"donnees/echeances.exemple.json", "donnees/veille-taches.exemple.json"}
+    assert {n for n in noms if n.startswith("memoire/")} == {"memoire/INDEX.md"}
+
+
+def test_les_exemples_sont_du_json_valide():
+    for nom in ("config.exemple.json", "donnees/echeances.exemple.json", "donnees/veille-taches.exemple.json"):
+        json.loads((RACINE / nom).read_text(encoding="utf-8"))
+
+
+def test_la_config_exemple_ne_contient_aucun_tableau_ni_secret():
+    cfg = json.loads((RACINE / "config.exemple.json").read_text(encoding="utf-8"))
+    assert cfg["kanban"]["numero"] is None and cfg["kanban"]["projet_id"] == "" and cfg["kanban"]["champs"] == {}
+    assert all(v == "" for v in cfg["copilot"]["modeles"].values())
+
+
+def test_licence_mit_au_nom_de_l_auteur():
+    texte = (RACINE / "LICENSE").read_text(encoding="utf-8")
+    assert texte.startswith("MIT License") and "Copyright (c) 2026 Gwenael Cochet" in texte
+
+
+def test_aucune_dependance_a_l_execution():
+    texte = (RACINE / "pyproject.toml").read_text(encoding="utf-8")
+    assert "dependencies = []" in texte and 'requires-python = ">=3.11"' in texte
+
+
+def test_les_outils_n_importent_que_la_bibliotheque_standard():
+    locaux = {p.stem for p in (RACINE / "outils").glob("*.py")}
+    autorises = set(__import__("sys").stdlib_module_names) | locaux
+    for p in (RACINE / "outils").glob("*.py"):
+        for ligne in p.read_text(encoding="utf-8").splitlines():
+            m = re.match(r"^(?:from|import)\s+([A-Za-z_][A-Za-z0-9_]*)", ligne)
+            if m:
+                assert m[1] in autorises, f"{p.name} importe {m[1]}, absent de la bibliothèque standard"
+
+
+def test_agents_md_reste_court():
+    lignes = (RACINE / "AGENTS.md").read_text(encoding="utf-8").splitlines()
+    assert len(lignes) <= 80  # chargé à chaque session : chaque ligne coûte
+
+
+# ---------- commun ----------
+def test_charger_config_messages_utiles(tmp_path):
+    with pytest.raises(commun.ErreurConfig, match="config.exemple.json"):
+        commun.charger_config(tmp_path)
+    (tmp_path / "config.json").write_text("{pas du json", encoding="utf-8")
+    with pytest.raises(commun.ErreurConfig, match="JSON invalide"):
+        commun.charger_config(tmp_path)
+    (tmp_path / "config.json").write_text("[1]", encoding="utf-8")
+    with pytest.raises(commun.ErreurConfig, match="objet JSON"):
+        commun.charger_config(tmp_path)
+    (tmp_path / "config.json").write_text('{"a": 1}', encoding="utf-8")
+    assert commun.charger_config(tmp_path) == {"a": 1}
+
+
+def test_lire_ts_et_iso():
+    t = commun.lire_ts("2026-11-25T10:00:00Z")
+    assert commun.iso(t) == "2026-11-25T10:00:00Z"
+    assert commun.lire_ts("2026-11-25T10:00:00").tzinfo is not None
+    assert commun.lire_ts("n'importe quoi") is None and commun.lire_ts(5) is None
+
+
+def test_lire_journal_ignore_les_lignes_corrompues(tmp_path):
+    f = tmp_path / "j.jsonl"
+    f.write_text('{"a": 1}\npas du json\n[1]\n{"b": 2}\n', encoding="utf-8")
+    assert commun.lire_journal(f) == [{"a": 1}, {"b": 2}]
+    assert commun.lire_journal(tmp_path / "absent.jsonl") == []
+
+
+# ---------- nouvel_id ----------
+def test_reserver_cree_un_brief_vide_unique(tmp_path):
+    jour = date(2026, 11, 25)
+    a, b = nouvel_id.reserver(tmp_path, jour), nouvel_id.reserver(tmp_path, jour)
+    assert re.fullmatch(r"m-20261125-01-[0-9a-f]{4}", a) and re.fullmatch(r"m-20261125-02-[0-9a-f]{4}", b)
+    assert (tmp_path / "briefs" / f"{a}.md").read_text(encoding="utf-8") == ""
+    assert nouvel_id.reserver(tmp_path, date(2026, 11, 26)).startswith("m-20261126-01-")
+
+
+def test_nouvel_id_main(tmp_path, capsys):
+    assert nouvel_id.main(["--nb", "2"], racine=tmp_path) == 0
+    assert len(capsys.readouterr().out.split()) == 2
+    assert nouvel_id.main(["--nb", "0"], racine=tmp_path) == 2

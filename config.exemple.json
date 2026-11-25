@@ -20,13 +20,21 @@
       "cwd": "boutique-web",
       "git_root": "boutique-web",
       "add_dirs": [],
-      "autorise": ["PowerShell(python -m pytest*)", "Bash(python -m pytest*)", "Bash(ruff check*)"]
+      "autorise": [
+        "PowerShell(python -m pytest*)",
+        "Bash(python -m pytest*)",
+        "Bash(ruff check*)"
+      ],
+      "autorise_copilot": [
+        "shell(python -m pytest)"
+      ]
     },
     "pipeline-ventes": {
       "cwd": "pipeline-ventes",
       "git_root": "pipeline-ventes",
       "add_dirs": [],
-      "autorise": []
+      "autorise": [],
+      "autorise_copilot": []
     }
   },
   "kanban": {

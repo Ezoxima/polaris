@@ -17,6 +17,9 @@ Ce que l'outil fait :
 Ce que l'outil ne fait jamais : supprimer ou modifier un tableau, une carte ou un champ existant. Si la création
 échoue en cours de route, il dit quel tableau est incomplet ; c'est à toi de le supprimer ou de le compléter.
 
+Statut : la forme des réponses de `gh project list` et `gh project field-list` a été vérifiée en lecture sur un vrai
+compte ; la création du tableau, des champs et la mise à jour de `Status` n'ont été testées qu'avec un `gh` simulé.
+
 Prérequis : `gh` installé et connecté, avec le droit `project` (`gh auth refresh -s project`).
 `gh` est appelé par `kanban.executer_gh`, remplacé par un faux dans les tests : aucun test n'écrit sur GitHub.
 """

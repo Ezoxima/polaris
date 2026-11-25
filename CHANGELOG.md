@@ -52,7 +52,7 @@ que ce qu'ils annoncent.
 
 ### Pistes hors de ce lot
 
-Lanceur utilisable sans CLI d'agent, connecteur vers un autre Kanban, contrat de données commun pour des journaux
+Lanceur automatique sans CLI d'agent (le mode 2 se remplace en attendant par une sous-session ouverte à la main, non éprouvée), connecteur vers un autre Kanban, contrat de données commun pour des journaux
 existants, revue des comportements du lanceur (commit automatique, nouvelle tentative sur limite d'usage, dépassement
 du plafond « En cours », verrou de 3 h). Notées dans la feuille de route du README.
 

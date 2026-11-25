@@ -16,7 +16,7 @@ rien qui crée ou modifie.
 
 | Capacité | Comment la constater | Sans elle, ça marche | Différé |
 |---|---|---|---|
-| CLI `claude` ou `copilot` | `Get-Command claude`, `Get-Command copilot` | commandes conversationnelles dans l'application, registre, modèles, veille en lecture | lanceur `lancer_mission.py`, `/go` |
+| CLI `claude` ou `copilot` | `Get-Command claude`, `Get-Command copilot` | commandes conversationnelles dans l'application, registre, modèles, veille en lecture, missions par sous-session lancée à la main (étape 4) | le lanceur automatique `lancer_mission.py` et `/go` |
 | `gh` connecté | `Get-Command gh`, puis `gh auth status` | tout sauf Orion | `kanban_init.py`, lecture des cartes (`/point`, `/quoi-faire`, `/lancer`), règle « cartes En cours » de la veille |
 | Git | `git --version` | tout, sauf les commits locaux des missions | commit automatique du lanceur ; `git init` d'un nouveau projet |
 | Python 3.11 ou plus | `py -0p`, ou chemin complet (étape 2) | rien : c'est le prérequis des outils | tous les outils `outils/*.py` |
@@ -77,8 +77,21 @@ Retour arrière : supprime le dossier modifié et restaure la sauvegarde de l'é
 
 Ce qui fonctionne sans `claude` ni `copilot` : le registre et les préférences (`registre/`), les gabarits
 (`modeles/`), les commandes conversationnelles dans l'application, la veille en lecture (`veille.py`), le
-générateur de commandes. Ce qui est **différé** : le lanceur `lancer_mission.py` (il appelle une CLI) et donc `/go` ;
-les missions se font alors en mode 3, dans la session de l'application, où tu réponds aux demandes d'autorisation.
+générateur de commandes.
+
+**Le mode 2 sans CLI : une sous-session.** Le lanceur `lancer_mission.py` (et donc `/go`) appelle une CLI : il reste
+hors de portée. On le remplace par une **sous-session**, une session dédiée ouverte à la main dans l'application
+GitHub Copilot, à qui l'on donne le brief tel quel. Le format du brief, le compte rendu, le journal et les accords
+sont les mêmes ; seul le moyen de lancement change (à la main, au lieu du lanceur). C'est l'équivalent du mode 2 sans
+CLI, **pas encore éprouvé**. Par rapport au lanceur, il manque :
+
+- le contrôle automatique du plafond de cartes « En cours » : compte-les toi-même avant d'ouvrir la sous-session ;
+- le verrou (« une seule mission à la fois par projet ») : n'en ouvre qu'une par projet, à la main ;
+- la consommation : tu la relèves et la notes à la main, avant et après ;
+- l'écriture automatique du journal `donnees/missions.jsonl` : demande à la sous-session d'écrire sa ligne de fin, ou
+  écris-la toi-même, avec ton accord (étape 7).
+
+Seul le lanceur automatique reste hors lot (voir la feuille de route du README).
 
 Honnêteté : le fonctionnement des commandes de Polaris dans l'application seule n'a **pas été éprouvé** (voir
 [copilot.md](copilot.md)). Fais cet essai, dans l'ordre, et note ce qui diffère :
@@ -146,5 +159,5 @@ Ce dépôt est public et générique. Ton registre, tes préférences et tes che
 
 ## 9. Ce que ce guide ne couvre pas
 
-Lanceur sans CLI, connecteur vers un autre Kanban, journaux existants au format différent : voir la feuille de route
+Lanceur automatique sans CLI, connecteur vers un autre Kanban, journaux existants au format différent : voir la feuille de route
 du [README](../README.md).

@@ -84,5 +84,5 @@ Les résultats de ces essais sont à noter dans ce fichier : un « non testé »
 ## Ce qui n'est pas fourni pour Copilot
 
 Les agents personnalisés en lecture seule (mode 1), les hooks de blocage et les règles par dossier ne sont pas livrés
-en v1. La commande `/conseil` dit, côté Copilot, de jouer les quatre rôles l'un après l'autre si les sous-agents ne
-sont pas disponibles : l'indépendance des avis est alors réduite.
+en v1. La commande `/conseil` dit, côté Copilot, de jouer les rôles l'un après l'autre si les sous-agents ne
+sont pas disponibles ; ce ne sont alors pas des avis séparés, et elle le dit.

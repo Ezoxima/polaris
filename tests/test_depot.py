@@ -109,6 +109,36 @@ def test_preferences_existent_et_agents_md_y_renvoie():
     assert "registre/preferences.md" in agents and "ne lève aucun garde-fou du socle" in agents
 
 
+def test_guide_poste_restreint_est_lie_et_complet():
+    guide = (RACINE / "docs" / "installation-restreinte.md").read_text(encoding="utf-8")
+    for titre in (
+        "Inventaire",
+        "Python hors du PATH",
+        "sans Git",
+        "Sans CLI",
+        "Kanban",
+        "Accords distincts",
+        "Confidentialité",
+    ):
+        assert titre in guide, titre
+    for source in ("README.md", "docs/installation.md"):
+        assert "installation-restreinte.md" in (RACINE / source).read_text(encoding="utf-8")
+
+
+def test_questions_par_tour_reglees_dans_les_preferences_et_lues_par_creuser():
+    prefs = (RACINE / "registre" / "preferences.md").read_text(encoding="utf-8")
+    assert re.search(r"Questions par tour.*: \*\*1\*\*", prefs)
+    creuser = (RACINE / "commandes" / "creuser.md").read_text(encoding="utf-8")
+    assert "registre/preferences.md" in creuser and "Questions par\n  tour" in creuser.replace("\r\n", "\n")
+
+
+def test_version_du_changelog_et_de_pyproject_concordent():
+    pyproject = (RACINE / "pyproject.toml").read_text(encoding="utf-8")
+    version = re.search(r'^version = "([^"]+)"', pyproject, re.M)[1]
+    premiere = re.search(r"^## \[(\d+\.\d+\.\d+)\]", (RACINE / "CHANGELOG.md").read_text(encoding="utf-8"), re.M)[1]
+    assert version == premiere == "0.2.0"
+
+
 def test_preferences_renvoient_aux_cles_de_config_sans_recopier_la_valeur():
     prefs = (RACINE / "registre" / "preferences.md").read_text(encoding="utf-8")
     cfg = json.loads((RACINE / "config.exemple.json").read_text(encoding="utf-8"))

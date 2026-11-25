@@ -82,7 +82,9 @@ des skills dans `.github/skills/`. Plusieurs points ne sont pas encore testés :
 [registre/preferences.md](registre/preferences.md) ; garde les valeurs par défaut ou modifie une ligne. Le socle des
 garde-fous ne s'y retire pas.
 
-Pas à pas complet : [docs/installation.md](docs/installation.md).
+Pas à pas complet : [docs/installation.md](docs/installation.md). Poste restreint (pas de CLI d'agent, `gh` non
+garanti, dossier existant sans Git, Kanban déjà en place) :
+[docs/installation-restreinte.md](docs/installation-restreinte.md).
 
 ## Les outils
 
@@ -104,7 +106,7 @@ polaris/
   registre/                   projets, préférences, grille, formats de mission, cadrage, recettes du Kanban
   modeles/                    gabarits : brief, compte rendu, mémoire d'un axe
   memoire/INDEX.md            index général de la mémoire (gabarit)
-  docs/                       architecture, installation, Copilot, garde-fous
+  docs/                       architecture, installation (et poste restreint), Copilot, garde-fous
   outils/                     les cinq outils et leurs modules communs
   donnees/                    exemples fictifs ; tes vraies données restent locales
   tests/                      pytest : lanceur, Kanban, veille, générateur, confidentialité
@@ -121,6 +123,12 @@ polaris/
   six colonnes, sept champs relus sur GitHub, identifiants écrits dans `config.json`, et refus d'un titre déjà pris.
   Les tests, eux, simulent `gh`. Lis le `--dry-run` (il n'appelle pas `gh` : il ne voit donc pas un titre déjà pris),
   puis vérifie le tableau obtenu.
+- **Pas de lanceur sans CLI d'agent.** Sur un poste où `claude` et `copilot` ne sont pas autorisés, les commandes
+  conversationnelles, le registre et la veille en lecture restent utilisables, mais pas `lancer_mission.py` ni `/go`.
+  Le fonctionnement des commandes dans l'application seule n'est pas éprouvé : voir
+  [docs/installation-restreinte.md](docs/installation-restreinte.md), qui donne l'essai à faire.
+- **Un seul Kanban fait autorité.** Orion est un GitHub Projects ; il n'y a pas de connecteur vers un autre système.
+  Ne crée pas un second tableau à côté d'un Kanban existant.
 - **Les garde-fous ne sont pas une barrière de sécurité.** La liste d'outils réduit les risques ; elle ne remplace
   ni le brief précis, ni la relecture du compte rendu et du diff.
 - **La veille des tâches planifiées ne fonctionne que sous Windows** ; ailleurs elle est ignorée et le dit.
@@ -136,7 +144,12 @@ Pistes envisagées pour une v2, sans engagement de date :
 - un outil de renouvellement des jetons d'accès avant leur échéance ;
 - des agents Copilot en lecture seule et des hooks de blocage ;
 - des adaptateurs pour d'autres tableaux que GitHub Projects ;
-- un entretien de paramétrage guidé, `/parametrage`.
+- un entretien de paramétrage guidé, `/parametrage` ;
+- un lanceur utilisable sans CLI d'agent ;
+- un connecteur vers un autre Kanban que GitHub Projects ;
+- un contrat de données commun pour des journaux de missions déjà existants ;
+- une revue des comportements du lanceur : commit automatique, nouvelle tentative sur limite d'usage, dépassement du
+  plafond « En cours », verrou de 3 h.
 
 ## Licence
 

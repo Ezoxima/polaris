@@ -3,6 +3,59 @@
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versions selon
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.2.0] - 2026-11-25
+
+Installation en environnement restreint : un guide dédié, et des outils qui n'écrasent, ne lisent ni n'écrivent plus
+que ce qu'ils annoncent.
+
+### Ajouté
+
+- `docs/installation-restreinte.md` : inventaire des capacités du poste (CLI d'agent, `gh`, Git, Python, tâches
+  planifiées) avec ce qui marche sans elles et ce qui est différé ; Python hors du `PATH` ; dossier existant sans Git
+  (sauvegarde, comparaison, fusion à la main, retour arrière) ; usage sans CLI ; Kanban existant ; tableau des accords
+  distincts ; confidentialité de la personnalisation locale. Liens depuis le README et `docs/installation.md`.
+- `generer_commandes.py --forcer` et le code de sortie 3 (voir « Corrigé »).
+- `.gitignore` : `registre/*.local.md` pour la personnalisation locale.
+- `registre/preferences.md` : réglage « Questions par tour » de l'entretien `creuser` (défaut : une seule).
+- `commun.ErreurJournal` et `commun.Journal` (liste des événements avec les numéros des lignes illisibles).
+- Tests pour chacun de ces points (350 au total).
+
+### Modifié
+
+- `/nouveau-projet` : le dossier, `git init`, le premier commit, l'inscription au Kanban et l'écriture au journal sont
+  des étapes séparées, chacune avec son accord et sautable ; un dossier sans Git est un choix valide.
+- `creuser` lit le nombre de questions par tour dans `registre/preferences.md` (une seule par défaut, au lieu de
+  trois) ; `/note --creuser` suit le même réglage.
+- `/conseil` et `creuser` ne promettent rien sur l'indépendance des avis, le nombre d'agents ou le coût, et ne lancent
+  aucun agent ni n'écrivent aucune synthèse sans accord.
+- `/point` lance la veille avec `--sans-ecrire` : la commande ne modifie plus rien, ce qu'elle annonce. Aucun outil ne
+  relit `donnees/veille.json`, donc rien n'en dépend.
+- `tests/test_confidentialite.py` : s'en tient aux fichiers suivis par Git ; hors dépôt Git, il écarte ce que
+  `.gitignore` écarte.
+- `kanban_init.py` : docstring à jour (la création réelle a été éprouvée le 25/11/2026).
+- `pyproject.toml` : version 0.2.0.
+
+### Corrigé
+
+- `generer_commandes.py` écrasait un fichier cible écrit à la main. Désormais, un fichier cible existant sans la marque
+  « Fichier généré par outils/generer_commandes.py » provoque un refus en bloc (code 3, liste des fichiers, rien
+  d'écrit) sauf `--forcer` ; `--verifier` les signale à part. Un fichier qui porte la marque mais a été modifié à la
+  main reste réécrit, comme avant.
+- `veille.py --exemples` interrogeait quand même le Planificateur de tâches. Il ne fait plus aucune lecture système
+  (ni Planificateur, ni Orion, ni `config.json`) ; l'aide et la docstring distinguent `--sans-ecrire` (pas d'écriture)
+  de `--exemples` (pas de lecture système), deux options indépendantes.
+- `commun.lire_journal` avalait les erreurs : un journal illisible donnait une liste vide, des lignes corrompues
+  disparaissaient. Un journal absent reste vide ; une erreur d'E/S lève `ErreurJournal` (le lanceur refuse de lancer,
+  la veille affiche une erreur de lecture) ; les lignes corrompues sont comptées et signalées avec leur numéro.
+- `kanban_init.py` remplaçait un `config.json` invalide par l'exemple puis le réécrivait. Il refuse désormais (code 2,
+  fichier intact) ; un `config.json` absent reste possible, mais l'outil l'annonce avant toute écriture.
+
+### Pistes hors de ce lot
+
+Lanceur utilisable sans CLI d'agent, connecteur vers un autre Kanban, contrat de données commun pour des journaux
+existants, revue des comportements du lanceur (commit automatique, nouvelle tentative sur limite d'usage, dépassement
+du plafond « En cours », verrou de 3 h). Notées dans la feuille de route du README.
+
 ## [0.1.2] - 2026-11-25
 
 Corrections issues d'un test d'installation sur un clone vierge.

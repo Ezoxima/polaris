@@ -1,6 +1,8 @@
 # Installation
 
 Ce guide installe Polaris sur un poste, pour Claude Code, pour GitHub Copilot, ou pour les deux. Compte une demi-heure.
+Poste restreint (pas de CLI d'agent, `gh` non garanti, Python hors du `PATH`, dossier Polaris déjà en place sans Git,
+Kanban existant) : suis plutôt [installation-restreinte.md](installation-restreinte.md).
 Les outils n'utilisent que la bibliothèque standard de Python : il n'y a rien à installer à l'exécution.
 
 ## 1. Prérequis
@@ -27,7 +29,8 @@ La dernière commande doit répondre `OK : 16 fichiers générés à jour`. Si t
 lance les tests (aucun n'appelle `claude`, `copilot` ni `gh`).
 
 Ton instance de Polaris contient ton registre, tes briefs et ta mémoire : garde-la **privée** (un dépôt privé ou un
-dossier local). Le `.gitignore` exclut déjà `config.json`, `donnees/` (sauf les exemples), `briefs/` et `memoire/`.
+dossier local). Le `.gitignore` exclut déjà `config.json`, `donnees/` (sauf les exemples), `briefs/`, `memoire/` et
+`registre/*.local.md` : mets-y tes versions personnelles des registres plutôt que de modifier les fichiers génériques.
 
 ## 3. Configurer
 
@@ -158,3 +161,5 @@ modifie jamais `.claude/` ni `.github/skills/` à la main : l'intégration conti
 | `N cartes « En cours »` | plafond du Kanban atteint | terminer une carte, ou `--parallele` si c'est voulu |
 | `Failed to start inspector` / `EADDRINUSE` au lancement d'une mission | lancé depuis l'app de bureau Claude Code, le `claude` enfant héritait de `BUN_INSPECT` (débogueur de la session parente) et visait le même port | corrigé en 0.1.2 (le lanceur retire ces variables) ; avec une version antérieure, lancer la mission depuis un terminal ordinaire |
 | `Désynchronisé` (CI ou `--verifier`) | un fichier généré a été modifié à la main | `python outils/generer_commandes.py` |
+| `REFUS : ces fichiers existent déjà et n'ont pas été générés` | une commande écrite à la main porte le même nom qu'une commande générée | compare et fusionne à la main ; `--forcer` seulement après sauvegarde ([installation-restreinte.md](installation-restreinte.md)) |
+| `REFUS : config.json …` (`kanban_init.py`) | `config.json` est invalide ; il n'est jamais remplacé par l'exemple | le corriger, puis relancer |

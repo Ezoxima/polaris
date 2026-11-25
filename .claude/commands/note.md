@@ -6,8 +6,8 @@ argument-hint: "<l'idée en une phrase> [--creuser]"
 
 Idée : `$ARGUMENTS` (si c'est vide, demande-la).
 
-Option `--creuser` dans les arguments : avant l'étape 3, mène un tour de la skill `creuser` en mode `léger` (trois
-questions au plus) et reporte son récapitulatif dans la description de la carte. Sans l'option, reste à une
+Option `--creuser` dans les arguments : avant l'étape 3, mène un tour de la skill `creuser` en mode `léger` (un tour,
+au plus le nombre de questions réglé dans `registre/preferences.md`) et reporte son récapitulatif dans la description de la carte. Sans l'option, reste à une
 question au plus.
 
 1. Déduis sans insister : **Projet** (liste dans `registre/projets.md` ; « Transverse » si plusieurs),

@@ -143,8 +143,8 @@ seulement, passer en mode 3 ou redécouper. Les manques sont notés au journal.
 
 `outils/veille.py` détecte ce qu'on oublie **sans session IA**, donc sans consommer de quota : échéances dépassées ou
 proches, missions lancées sans fin au journal, cartes « En cours » en trop, tâches planifiées en échec (Windows,
-lecture seule). Elle n'écrit que `donnees/veille.json`, ne crée jamais de carte ni de tâche : `/point` propose,
-l'utilisateur valide.
+lecture seule). Elle n'écrit que `donnees/veille.json` (et rien avec `--sans-ecrire`, comme le fait `/point`, car aucun
+outil ne relit ce fichier), ne crée jamais de carte ni de tâche : `/point` propose, l'utilisateur valide.
 
 ## 6. Économie de jetons
 

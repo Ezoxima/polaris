@@ -16,9 +16,16 @@ Sources lues (toutes en lecture seule) :
 Une source absente n'est pas une erreur : elle est signalée par une note. Une source illisible est une erreur de
 lecture (ligne `!`), les autres sources continuent.
 
-Écrit `donnees/veille.json` (écriture atomique, seul fichier écrit) et affiche un résumé. `--sans-ecrire` n'écrit
-rien ; `--json` imprime le rapport complet ; `--exemples` lit les fichiers `*.exemple.json` du dépôt (essai à blanc :
-Orion n'est pas lu).
+Écrit `donnees/veille.json` (écriture atomique, seul fichier écrit) et affiche un résumé. Deux options
+indépendantes :
+
+- `--sans-ecrire` empêche l'ÉCRITURE du rapport (rien n'est écrit sur le disque) ; les sources sont lues comme
+  d'habitude, Planificateur de tâches et Orion compris ;
+- `--exemples` empêche les LECTURES système : ni Planificateur de tâches, ni Orion (`gh`), ni `config.json`, ni
+  journal réel ; seuls les fichiers `*.exemple.json` du dépôt sont lus (les états des tâches ne sont pas simulés :
+  une note le dit). Le rapport est quand même écrit, sauf avec `--sans-ecrire` : pour un essai qui ne touche à
+  rien, combine les deux ;
+- `--json` imprime le rapport complet au lieu du résumé.
 
 **Les alertes ne créent AUCUNE carte et le programme ne crée AUCUNE tâche planifiée** : `/point` propose la carte,
 qui n'est créée qu'après un « ok ». Aucun secret n'est lu ni écrit.
@@ -679,9 +686,11 @@ def analyser(
     """Rapport complet ; ne lève jamais (chaque source a sa propre erreur). `maintenant` : datetime avec fuseau.
 
     `windows` : lire les tâches planifiées Windows (défaut : le système est Windows). `exemples` : lit les fichiers
-    `*.exemple.json` à la place des vrais et ne lit pas Orion. `config_kanban` : la clé `kanban` de config.json."""
+    `*.exemple.json` à la place des vrais et ne fait AUCUNE lecture système (ni Planificateur, ni Orion, ni journal). `config_kanban` : la clé `kanban` de config.json."""
     donnees = Path(donnees)
     windows = sys.platform == "win32" if windows is None else windows
+    if exemples:  # essai à blanc : aucune lecture système, jamais d'appel au Planificateur
+        windows = False
     suffixe = ".exemple.json" if exemples else ".json"
     alertes: list[dict] = []
     erreurs: list[str] = []
@@ -695,7 +704,9 @@ def analyser(
         else:
             config, erreurs_config = lire_config_taches(chemin_taches)
             erreurs += erreurs_config
-            if config and not windows:
+            if config and exemples:
+                notes.append("mode exemples : tâches planifiées non lues (aucun état simulé).")
+            elif config and not windows:
                 notes.append("tâches planifiées : non vérifié sur ce système (lecture réservée à Windows).")
             elif config:
                 etats, erreur = lire_taches_windows([t["nom"] for t in config], executer_ps or executer_powershell)
@@ -798,15 +809,23 @@ def main(
     commun.sortie_utf8()
     parseur = argparse.ArgumentParser(description="Veille : tâches planifiées, échéances, missions, cartes.")
     parseur.add_argument("--json", action="store_true", help="imprime le JSON au lieu du résumé")
-    parseur.add_argument("--sans-ecrire", action="store_true", help="n'écrit pas donnees/veille.json")
-    parseur.add_argument("--exemples", action="store_true", help="lit les fichiers *.exemple.json (essai à blanc)")
+    parseur.add_argument(
+        "--sans-ecrire", action="store_true", help="n'écrit pas donnees/veille.json (les sources sont lues)"
+    )
+    parseur.add_argument(
+        "--exemples",
+        action="store_true",
+        help="aucune lecture système (Planificateur, Orion) : lit seulement les fichiers *.exemple.json",
+    )
     parseur.add_argument("--donnees", type=Path, help="dossier des données (défaut : donnees/ du dépôt)")
     args = parseur.parse_args(argv)
     dossier = args.donnees or donnees or Path(racine) / "donnees"
-    try:
-        config_kanban = commun.charger_config(Path(racine)).get("kanban")
-    except commun.ErreurConfig:
-        config_kanban = None
+    config_kanban = None
+    if not args.exemples:
+        try:
+            config_kanban = commun.charger_config(Path(racine)).get("kanban")
+        except commun.ErreurConfig:
+            pass
     rapport = analyser(
         dossier,
         maintenant(),

@@ -544,19 +544,48 @@ def test_main_echec_d_ecriture_code_1(tmp_path, monkeypatch, capsys):
 
 
 def test_exemples_du_depot_donnent_un_resume_sans_erreur(tmp_path, capsys):
-    """Les deux fichiers d'exemple versionnés sont valides et lisibles (PowerShell simulé : aucune tâche trouvée).
-
-    `racine=tmp_path` : sans config.json, la veille ne lit pas Orion."""
+    """Les deux fichiers d'exemple versionnés sont valides et lisibles ; aucune lecture système."""
     code = veille.main(
         ["--exemples", "--sans-ecrire", "--donnees", str(RACINE_DEPOT / "donnees")],
         maintenant=lambda: datetime(2026, 11, 25, 12, 0, tzinfo=UTC),
-        executer_ps=faux_ps(),
         fuseau=FUSEAU,
         racine=tmp_path,
-        windows=True,
     )
     sortie = capsys.readouterr().out
-    assert code == 0 and "Veille : 1 critique, 2 attention, 1 info." in sortie and "! " not in sortie
+    assert code == 0 and "Veille :" in sortie and "! " not in sortie
+    assert "tâches planifiées non lues" in sortie
+
+
+def test_exemples_n_interroge_jamais_le_planificateur(tmp_path, monkeypatch, capsys):
+    appels = []
+    monkeypatch.setattr(veille, "lire_taches_windows", lambda *a, **k: appels.append("taches") or ({}, None))
+    monkeypatch.setattr(veille, "lire_passages_refuses", lambda *a, **k: appels.append("refus") or {})
+    monkeypatch.setattr(veille, "executer_powershell", lambda *a, **k: appels.append("ps") or (0, "[]"))
+    code = veille.main(
+        ["--exemples", "--sans-ecrire", "--donnees", str(RACINE_DEPOT / "donnees")],
+        maintenant=lambda: MAINT,
+        fuseau=FUSEAU,
+        racine=tmp_path,
+        windows=True,  # même quand l'appelant force Windows
+    )
+    assert code == 0 and appels == []
+
+
+def test_exemples_ne_lit_pas_config_ni_orion(tmp_path):
+    (tmp_path / "config.json").write_text(json.dumps({"kanban": KANBAN}), encoding="utf-8")
+    d = dossier(tmp_path)
+    r = veille.analyser(d, MAINT, faux_ps(), faux_gh([carte("A")]), FUSEAU, config_kanban=KANBAN, exemples=True)
+    assert not any(a["cle"].startswith("cartes") for a in r["alertes"])
+    assert any("cartes d'Orion non lues" in n for n in r["notes"])
+
+
+def test_sans_ecrire_n_ecrit_pas_mais_lit(tmp_path):
+    d = dossier(tmp_path)
+    ps = faux_ps()
+    veille.main(
+        ["--sans-ecrire", "--donnees", str(d)], maintenant=lambda: MAINT, executer_ps=ps, racine=tmp_path, windows=True
+    )
+    assert not (d / "veille.json").exists()
 
 
 def test_aucun_secret_dans_la_sortie(tmp_path):

@@ -8,7 +8,8 @@ Fais le point sur tous mes projets : court (25 lignes au plus), en français cla
 
 1. Lis Orion (recettes : `registre/kanban.md`) : toutes les cartes.
 2. Lis `registre/projets.md` (échéances, tâches planifiées) et les 5 dernières lignes de `donnees/missions.jsonl`.
-   Lance `python outils/veille.py` : elle ne crée aucune carte ni aucune tâche, et n'écrit que `donnees/veille.json`.
+   Lance `python outils/veille.py --sans-ecrire` : elle lit ses sources, n'écrit aucun fichier et ne crée aucune carte
+   ni aucune tâche.
 3. Réponds dans cet ordre :
    - **Alertes** (sortie de la veille ; critiques d'abord, puis attention, puis info ; « aucune » si vide ; signale
      les lignes `!` d'erreur de lecture). Pour chaque alerte **sans** carte existante, propose une carte (titre,

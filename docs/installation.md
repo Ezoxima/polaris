@@ -107,8 +107,10 @@ python outils/veille.py --sans-ecrire
 
 Remplace le contenu des deux fichiers par tes échéances et tes tâches planifiées (Windows seulement pour les tâches ;
 ailleurs elles sont ignorées avec un message). Pour un essai sur les exemples fictifs :
-`python outils/veille.py --exemples --sans-ecrire`. La veille ne consomme aucun quota, n'écrit que
-`donnees/veille.json` et ne crée jamais de carte : `/point` propose, tu valides.
+`python outils/veille.py --exemples --sans-ecrire` (`--exemples` : aucune lecture système, ni Planificateur ni
+Orion ; `--sans-ecrire` : aucun fichier écrit ; les deux options sont indépendantes). La veille ne consomme aucun
+quota, n'écrit que `donnees/veille.json` (rien avec `--sans-ecrire`, ce que fait `/point`) et ne crée jamais de
+carte : `/point` propose, tu valides.
 
 ## 8. Personnaliser Polaris
 

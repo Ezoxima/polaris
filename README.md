@@ -10,7 +10,8 @@ Un orchestrateur conversationnel pour mener plusieurs projets avec un assistant 
 - Elle **vérifie** le résultat au lieu de croire le compte rendu, et tient à jour un **Kanban** et une **mémoire** par projet.
 - Des **garde-fous** stricts (jamais de `git push`, d'argent réel, de mot de passe, de suppression de données) limitent
   ce qu'une mission autonome peut faire.
-- Aucune dépendance : les outils sont en Python, bibliothèque standard seulement.
+- Aucune dépendance à l'exécution : les outils sont en Python, bibliothèque standard seulement (pas de
+  `requirements.txt` ; `requirements-dev.txt` ne sert qu'à développer ce dépôt : pytest et ruff).
 
 ## Comment ça marche
 
@@ -77,6 +78,10 @@ python outils/veille.py --exemples --sans-ecrire # essai de la veille sur des do
 **Avec GitHub Copilot** : ouvre le dossier dans Copilot (CLI ou VS Code). `AGENTS.md` est le noyau et les commandes sont
 des skills dans `.github/skills/`. Plusieurs points ne sont pas encore testés : voir [docs/copilot.md](docs/copilot.md).
 
+**Personnaliser** : tes préférences (dialogue, quota, Kanban, fin de session, interdits ajoutés) tiennent dans
+[registre/preferences.md](registre/preferences.md) ; garde les valeurs par défaut ou modifie une ligne. Le socle des
+garde-fous ne s'y retire pas.
+
 Pas à pas complet : [docs/installation.md](docs/installation.md).
 
 ## Les outils
@@ -96,7 +101,7 @@ polaris/
   AGENTS.md  CLAUDE.md        noyau commun, et ce qui est propre à Claude Code
   commandes/                  source unique des commandes et de la skill creuser
   .claude/  .github/skills/   versions générées (Claude Code, Copilot)
-  registre/                   projets, grille, formats de mission, cadrage, recettes du Kanban
+  registre/                   projets, préférences, grille, formats de mission, cadrage, recettes du Kanban
   modeles/                    gabarits : brief, compte rendu, mémoire d'un axe
   memoire/INDEX.md            index général de la mémoire (gabarit)
   docs/                       architecture, installation, Copilot, garde-fous
@@ -104,6 +109,7 @@ polaris/
   donnees/                    exemples fictifs ; tes vraies données restent locales
   tests/                      pytest : lanceur, Kanban, veille, générateur, confidentialité
   config.exemple.json         modèle de config.json (non versionné)
+  requirements-dev.txt        pytest et ruff, versions fixées (développement seulement)
 ```
 
 ## Limites assumées
@@ -128,7 +134,8 @@ Pistes envisagées pour une v2, sans engagement de date :
 - une vue web locale de l'état des sessions et du Kanban ;
 - un outil de renouvellement des jetons d'accès avant leur échéance ;
 - des agents Copilot en lecture seule et des hooks de blocage ;
-- des adaptateurs pour d'autres tableaux que GitHub Projects.
+- des adaptateurs pour d'autres tableaux que GitHub Projects ;
+- un entretien de paramétrage guidé, `/parametrage`.
 
 ## Licence
 

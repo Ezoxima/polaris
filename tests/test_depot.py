@@ -102,6 +102,32 @@ def test_agents_md_reste_court():
     assert len(lignes) <= 80  # chargé à chaque session : chaque ligne coûte
 
 
+def test_preferences_existent_et_agents_md_y_renvoie():
+    prefs = (RACINE / "registre" / "preferences.md").read_text(encoding="utf-8")
+    assert re.search(r"^## Interdits ajoutés$", prefs, re.M)
+    agents = (RACINE / "AGENTS.md").read_text(encoding="utf-8")
+    assert "registre/preferences.md" in agents and "ne lève aucun garde-fou du socle" in agents
+
+
+def test_preferences_renvoient_aux_cles_de_config_sans_recopier_la_valeur():
+    prefs = (RACINE / "registre" / "preferences.md").read_text(encoding="utf-8")
+    cfg = json.loads((RACINE / "config.exemple.json").read_text(encoding="utf-8"))
+    assert "defauts.max_en_cours" in prefs and "max_en_cours" in cfg["defauts"]
+
+
+def test_requirements_dev_epingles_et_utilises_par_la_ci():
+    lignes = (RACINE / "requirements-dev.txt").read_text(encoding="utf-8").splitlines()
+    paquets = [ligne for ligne in lignes if ligne.strip() and not ligne.lstrip().startswith("#")]
+    assert {p.split("==")[0] for p in paquets} == {"pytest", "ruff"}
+    assert all(re.fullmatch(r"[A-Za-z0-9_.-]+==\d+(\.\d+)*", p) for p in paquets)
+    ci = (RACINE / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "pip install -r requirements-dev.txt" in ci
+
+
+def test_pyproject_n_a_pas_de_second_jeu_de_versions_de_developpement():
+    assert "optional-dependencies" not in (RACINE / "pyproject.toml").read_text(encoding="utf-8")
+
+
 # ---------- commun ----------
 def test_charger_config_messages_utiles(tmp_path):
     with pytest.raises(commun.ErreurConfig, match="config.exemple.json"):

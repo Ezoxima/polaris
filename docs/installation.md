@@ -13,7 +13,7 @@ Les outils n'utilisent que la bibliothèque standard de Python : il n'y a rien �
 | Claude Code **ou** Copilot CLI | — | les sessions de mission ; voir [copilot.md](copilot.md) pour Copilot |
 
 Le droit `project` de GitHub est nécessaire pour Orion : `gh auth refresh -s project`.
-Pour développer ce dépôt lui-même : `pip install pytest ruff`.
+Pour développer ce dépôt lui-même : `pip install -r requirements-dev.txt` (pytest et ruff, versions fixées).
 
 ## 2. Cloner et vérifier
 
@@ -107,7 +107,29 @@ ailleurs elles sont ignorées avec un message). Pour un essai sur les exemples f
 `python outils/veille.py --exemples --sans-ecrire`. La veille ne consomme aucun quota, n'écrit que
 `donnees/veille.json` et ne crée jamais de carte : `/point` propose, tu valides.
 
-## 8. Utiliser Polaris
+## 8. Personnaliser Polaris
+
+Polaris se règle sans entretien : ses choix par défaut sont ceux de son auteur, regroupés dans des fichiers lisibles.
+Garde-les ou modifie une ligne.
+
+| Quoi | Où | Comment |
+|---|---|---|
+| Dialogue, quota, Kanban, fin de session, Nova | `registre/preferences.md` | Chaque préférence a une valeur par défaut et une ligne « Pour changer » : réécris la ligne. |
+| Modèle, effort, durée max selon le type de tâche | `registre/grille.md` | Modifie le tableau ; le lanceur applique le plafond d'effort du modèle fort. |
+| Limites mécaniques (cartes « En cours », budgets, durée maximale, moteur) | `config.json`, clés `defauts` et `moteur_par_defaut` | Édite la valeur ; `preferences.md` renvoie à la clé sans la recopier. |
+| Projets | `registre/projets.md` et `config.json` (clé `projets`) | Une fiche et une entrée par projet (voir l'étape 5). |
+| Commandes (`/point`, `/lancer`…) | `commandes/` | Édite la source, puis `python outils/generer_commandes.py`. Ne modifie jamais `.claude/` ni `.github/skills/`. |
+| Colonnes et champs du Kanban | `outils/kanban_init.py` et `registre/kanban.md` | Change la liste dans l'outil avant de créer le tableau ; les recettes `gh` sont dans `kanban.md`. |
+| Interdits ajoutés | `registre/preferences.md`, section « Interdits ajoutés » | Écris une ligne par interdit (deux exemples y sont commentés). |
+
+Une seule source de vérité par réglage : si une valeur est dans `config.json`, c'est là qu'on la change.
+
+**Ce qui ne se retire pas.** Le socle des garde-fous (jamais de `git push`, d'argent réel, de mot de passe, de
+suppression de données, et le reste de la liste de [garde-fous.md](garde-fous.md)) n'est pas une préférence : le retirer
+dans `preferences.md` n'a aucun effet, on n'y **ajoute** que des interdits. Lever un interdit du socle demande de
+modifier `AGENTS.md` et `docs/garde-fous.md`, en connaissance de cause et pour une action donnée.
+
+## 9. Utiliser Polaris
 
 **Claude Code** : ouvre une session dans le dossier de Polaris. `CLAUDE.md` charge `AGENTS.md` ; les commandes
 `/point`, `/quoi-faire`, `/note`, `/lancer`, `/go`, `/nouveau-projet`, `/conseil` et la skill `creuser` sont disponibles.
@@ -118,7 +140,7 @@ skills (`.github/skills/`). Lis [copilot.md](copilot.md) : plusieurs points y so
 **Modifier une commande** : édite sa source dans `commandes/<nom>.md`, puis `python outils/generer_commandes.py`. Ne
 modifie jamais `.claude/` ni `.github/skills/` à la main : l'intégration continue le détecte.
 
-## 9. Dépannage
+## 10. Dépannage
 
 | Symptôme | Cause probable | Solution |
 |---|---|---|

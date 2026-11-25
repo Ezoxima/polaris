@@ -8,6 +8,7 @@ qu'un `except Exception` du code testé ne l'avale pas). Exécuteur, lecture d'O
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import threading
 from datetime import UTC, datetime, timedelta
@@ -649,3 +650,83 @@ def test_conflits_du_lot_unitaire():
 def test_cle_projet_normalisee():
     assert lm.cle_projet("/a/b", "/a") == lm.cle_projet("/a/b", "/a/")
     assert lm.cle_projet("/a/b", None) != lm.cle_projet("/a/c", None)
+
+
+# ---------- environnement de la mission (débogueur hérité) ----------
+def test_nettoyer_environnement_retire_bun_inspect_et_garde_le_reste():
+    env = {"PATH": "/usr/bin", "BUN_INSPECT": "ws://127.0.0.1:9228/", "bun_inspect_connect_to": "x", "CLAUDE_X": "1"}
+    propre, retraits = lm.nettoyer_environnement(env)
+    assert propre == {"PATH": "/usr/bin", "CLAUDE_X": "1"}
+    assert retraits == ["BUN_INSPECT", "bun_inspect_connect_to"]
+    assert "BUN_INSPECT" in env  # l'original n'est pas modifié
+
+
+@pytest.mark.parametrize(
+    ("avant", "apres"),
+    [
+        ("--inspect", None),
+        ("--inspect-brk=9229 --max-old-space-size=4096", "--max-old-space-size=4096"),
+        ("--max-old-space-size=4096 --inspect=127.0.0.1:9229", "--max-old-space-size=4096"),
+        ("--inspect-port 9229 --use-openssl-ca", "--use-openssl-ca"),
+        ("--use-openssl-ca", "--use-openssl-ca"),
+    ],
+)
+def test_nettoyer_environnement_node_options(avant, apres):
+    propre, retraits = lm.nettoyer_environnement({"NODE_OPTIONS": avant})
+    assert propre.get("NODE_OPTIONS") == apres
+    assert bool(retraits) == (avant != apres)
+
+
+def test_nettoyer_environnement_sans_debogueur_ne_retire_rien():
+    env = {"PATH": "/usr/bin", "NODE_OPTIONS": "--use-openssl-ca"}
+    assert lm.nettoyer_environnement(env) == (env, [])
+
+
+def test_executer_processus_transmet_un_environnement_nettoye(monkeypatch, tmp_path):
+    monkeypatch.setenv("BUN_INSPECT", "ws://127.0.0.1:9228/")
+    monkeypatch.setenv("NODE_OPTIONS", "--inspect-brk --use-openssl-ca")
+    monkeypatch.setenv("CLAUDE_CODE_AUTRE", "garde")
+    vus = {}
+
+    class FauxProcessus:
+        pid, returncode = 1, 0
+
+        def communicate(self, entree=None, timeout=None):
+            return "{}", ""
+
+    def faux_popen(commande, **options):
+        vus.update(options)
+        return FauxProcessus()
+
+    monkeypatch.setattr(subprocess, "Popen", faux_popen)
+    lm.executer_processus(["claude", "-p"], str(tmp_path), "brief", 5)
+    env = vus["env"]
+    assert not any(k.upper().startswith("BUN_INSPECT") for k in env)
+    assert env["NODE_OPTIONS"] == "--use-openssl-ca"
+    assert env["CLAUDE_CODE_AUTRE"] == "garde"
+    assert "BUN_INSPECT" in os.environ  # l'environnement du lanceur reste intact
+
+
+def test_dry_run_signale_les_variables_de_debogueur_retirees(tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("BUN_INSPECT", "ws://127.0.0.1:9228/")
+    assert aller(monde(tmp_path), ID, argv=["--dry-run"]) == 0
+    sortie_ = capsys.readouterr().out
+    assert "variables de débogueur retirées" in sortie_ and "BUN_INSPECT" in sortie_
+
+
+def test_dry_run_sans_debogueur_ne_dit_rien_de_l_environnement(tmp_path, capsys, monkeypatch):
+    for nom in ("BUN_INSPECT", "BUN_INSPECT_CONNECT_TO", "BUN_INSPECT_NOTIFY", "NODE_OPTIONS"):
+        monkeypatch.delenv(nom, raising=False)
+    assert aller(monde(tmp_path), ID, argv=["--dry-run"]) == 0
+    assert "débogueur" not in capsys.readouterr().out
+
+
+# ---------- pied de prompt ----------
+@pytest.mark.parametrize("moteur", ["claude", "copilot"])
+def test_le_pied_de_prompt_liste_les_colonnes_du_kanban(tmp_path, moteur):
+    racine = monde(tmp_path)
+    plan = lm.preparer(ID, racine, json.loads((racine / "config.json").read_text(encoding="utf-8")), moteur)
+    assert "{colonnes}" not in plan.prompt
+    for colonne in kanban.COLONNES:
+        assert colonne in plan.prompt
+    assert ", ".join(kanban.COLONNES) in plan.prompt

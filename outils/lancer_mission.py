@@ -27,6 +27,9 @@ Fonctionnement :
 - Le brief est lu dans `briefs/<id>.md` et transmis à la session : elle ne peut pas lire hors de son dépôt. Sa
   première ligne donne le projet (`Carte : … — Variante : … — Projet : …`), sa ligne `Exécution : modèle … · effort …
   · mode 2 · durée max N min [· budget N USD]` les paramètres.
+- Le processus enfant reçoit l'environnement du lanceur sans les variables de débogueur héritées (`BUN_INSPECT*`,
+  options `--inspect*` de `NODE_OPTIONS`) : lancé depuis l'app de bureau Claude Code, le `claude` enfant planterait
+  sinon (port du débogueur déjà pris). Le `--dry-run` dit ce qui sera retiré.
 - Les paramètres de chaque projet (dossier, dépôt git, dossiers en plus, outils autorisés) viennent de `config.json`.
 
 Refus (code 2, rien n'est lancé) : identifiant invalide, brief introuvable ou illisible, projet absent de
@@ -62,7 +65,7 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import NamedTuple
@@ -84,6 +87,7 @@ DUREE_PLAFOND_MIN = 120
 LIMITE_ESSAIS = 3
 LIMITE_ATTENTE_S = 1800
 LIMITE_DUREE_MAX_S = 600  # une « limite d'usage » arrive tout de suite, pas après dix minutes de travail
+OPTIONS_INSPECT_AVEC_VALEUR = ("--inspect-port", "--inspect-publish-uid")  # valeur dans le mot suivant si pas de `=`
 LIMITE_LIGNE_COMMANDE = 30000  # Windows refuse une ligne de commande de plus de 32 767 caractères
 
 SOCLE_AUTORISE = [
@@ -141,7 +145,7 @@ Tu es une session sans fenêtre : personne ne répondra à une question. Ne dema
 - Ce qui sort du périmètre du brief ne se fait pas : écris-le dans le compte rendu.
 Ta DERNIÈRE réponse est le compte rendu (Markdown, moins de 60 lignes) avec ces sections :
 ## Fait (preuves : tests et leur nombre, hash du commit, sortie de `git status --short` après le commit)
-## Carte (colonne proposée + « prochaine étape » en une phrase)
+## Carte (colonne proposée, une seule parmi : {colonnes} ; aucune autre n'existe, pas de « Terminé » ni de « Done » + « prochaine étape » en une phrase)
 ## Journal d'axe (5 à 10 lignes « État au {jour} »)
 ## Reste à décider par l'utilisateur
 ## Permission manquante ou blocage
@@ -474,7 +478,9 @@ def preparer(mission: str, racine: Path, config: dict, moteur: str = "claude") -
         moteur=moteur,
     )
     plan.cle = cle_projet(plan.cwd, plan.git_root)
-    plan.prompt = texte.rstrip("\n") + PIED.replace("{jour}", plan_jour())
+    plan.prompt = texte.rstrip("\n") + PIED.replace("{jour}", plan_jour()).replace(
+        "{colonnes}", ", ".join(kanban.COLONNES)
+    )
     if moteur == "claude":
         plan.entree = plan.prompt
         plan.commande = construire_commande_claude(plan)
@@ -555,14 +561,52 @@ def tuer_arbre(proc: subprocess.Popen) -> None:
         proc.kill()
 
 
+def nettoyer_environnement(env: Mapping[str, str]) -> tuple[dict[str, str], list[str]]:
+    """Copie de `env` sans les variables de débogueur héritées, et la liste de ce qui a été retiré. Ne modifie pas `env`.
+
+    Une session de l'app de bureau Claude Code pose `BUN_INSPECT=ws://127.0.0.1:9228/` ; le `claude` enfant en hérite,
+    veut ouvrir le même port et plante (EADDRINUSE). On retire donc toute clé `BUN_INSPECT*` et, dans `NODE_OPTIONS`,
+    les seules options `--inspect*` (avec leur valeur si elle est séparée) : le reste de `NODE_OPTIONS` (mémoire,
+    certificats…) peut être une configuration légitime de l'utilisateur et est conservé ; la variable disparaît si
+    elle devient vide. Aucune autre variable n'est touchée (pas de nettoyage large des `CLAUDE_*`)."""
+    propre, retraits = {}, []
+    for cle, valeur in env.items():
+        majuscules = cle.upper()  # Windows ne distingue pas la casse des noms de variables
+        if majuscules.startswith("BUN_INSPECT"):
+            retraits.append(cle)
+            continue
+        if majuscules == "NODE_OPTIONS":
+            gardees, retirees, saute = [], [], False
+            for option in valeur.split():
+                if saute:
+                    retirees.append(option)
+                    saute = False
+                elif option.startswith("--inspect"):
+                    retirees.append(option)
+                    saute = option in OPTIONS_INSPECT_AVEC_VALEUR
+                else:
+                    gardees.append(option)
+            if retirees:
+                retraits.append(f"{cle} ({' '.join(retirees)})")
+                if gardees:
+                    propre[cle] = " ".join(gardees)
+                continue
+        propre[cle] = valeur
+    return propre, retraits
+
+
 def executer_processus(commande: list, cwd: str, entree: str, delai_s: float) -> Sortie:
-    """Seul endroit qui lance `claude` ou `copilot`. Renvoie (sortie, erreurs, durée max atteinte ?, secondes, code)."""
+    """Seul endroit qui lance `claude` ou `copilot`. Renvoie (sortie, erreurs, durée max atteinte ?, secondes, code).
+
+    L'environnement transmis est celui du lanceur, débarrassé des variables de débogueur (`nettoyer_environnement`)."""
+    env, _ = nettoyer_environnement(os.environ)
     commande = [shutil.which(commande[0]) or commande[0], *commande[1:]]
     debut = time.time()
     options = {} if os.name == "nt" else {"start_new_session": True}
     proc = subprocess.Popen(
         commande,
         cwd=cwd,
+        env=env,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -831,6 +875,9 @@ def afficher_plan(plan: Plan, controles: list[str], ctx: Contexte) -> None:
         print(f"    + {o}")
     print(f"  outils interdits ({len(interdits)}) : " + ", ".join(interdits))
     print(f"  prompt   : {len(plan.prompt)} caractères (brief + règles communes)")
+    retraits = nettoyer_environnement(os.environ)[1]
+    if retraits:
+        print("  env      : variables de débogueur retirées pour la mission : " + ", ".join(retraits))
     print(f"  journal  : {ctx.journal} · compte rendu : briefs/{plan.mission}-compte-rendu.md")
     for n in plan.notes:
         print(f"  ! {n}")

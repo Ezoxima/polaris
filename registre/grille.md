@@ -13,8 +13,9 @@ l'utilisateur peut le changer.
 | standard | code, documentation, petits correctifs | `sonnet` | un modèle standard de ta liste |
 | fort | diagnostic, architecture, cadrage | `opus` | un modèle de raisonnement fort de ta liste |
 
-Les noms de modèles changent vite. Pour Copilot, ils se déclarent dans `config.json` (clé `copilot.modeles`) ; sans
-déclaration, le lanceur n'envoie pas `--model` et Copilot utilise son modèle par défaut.
+Les noms de modèles changent vite. Pour Copilot, ils se déclarent dans `config.json` (clé `copilot.modeles`) : un nom
+vide pour la classe demandée est un **refus** du lanceur (il n'envoie jamais de modèle « par défaut » à ta place).
+Une valeur `auto` (laisser la plateforme choisir) est prévue au lot suivant ; elle n'est pas disponible ici.
 
 ## Grille
 
@@ -31,9 +32,11 @@ déclaration, le lanceur n'envoie pas `--model` et Copilot utilise son modèle p
 - Une tâche trop grosse n'est jamais confiée d'un bloc : on la découpe en missions de 20 à 90 minutes.
 - Durée max atteinte : la session est arrêtée, après avoir laissé un compte rendu (ce qui a été essayé, ce qui
   bloque, la proposition).
-- **Copilot CLI** : aucune option d'effort ni de budget n'est documentée pour `copilot -p` (voir
-  [../docs/copilot.md](../docs/copilot.md)). La durée max reste appliquée par le lanceur ; l'effort et le budget
-  du brief sont alors ignorés, et le lanceur le signale.
+- **Copilot CLI** (voir [../docs/copilot.md](../docs/copilot.md)) : l'effort du brief est transmis par
+  `--reasoning-effort` **si l'aide de ton CLI liste cette option** ; sinon il est ignoré et le lanceur le signale. Le
+  budget en dollars du brief n'a pas d'équivalent : il est ignoré. Les **crédits IA** ne sont pas des dollars : leur
+  plafond est un réglage distinct (`copilot.credits_ia_max` dans `config.json`), jamais converti depuis le budget USD.
+  La durée max reste appliquée par le lanceur.
 
 ## Consommation estimée
 

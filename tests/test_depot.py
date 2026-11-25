@@ -136,13 +136,34 @@ def test_version_du_changelog_et_de_pyproject_concordent():
     pyproject = (RACINE / "pyproject.toml").read_text(encoding="utf-8")
     version = re.search(r'^version = "([^"]+)"', pyproject, re.M)[1]
     premiere = re.search(r"^## \[(\d+\.\d+\.\d+)\]", (RACINE / "CHANGELOG.md").read_text(encoding="utf-8"), re.M)[1]
-    assert version == premiere == "0.2.1"
+    assert version == premiere == "0.2.2"
 
 
-def test_preferences_renvoient_aux_cles_de_config_sans_recopier_la_valeur():
-    prefs = (RACINE / "registre" / "preferences.md").read_text(encoding="utf-8")
+def test_plus_de_plafond_en_cours_dans_l_exemple_ni_les_registres():
     cfg = json.loads((RACINE / "config.exemple.json").read_text(encoding="utf-8"))
-    assert "defauts.max_en_cours" in prefs and "max_en_cours" in cfg["defauts"]
+    assert "max_en_cours" not in cfg["defauts"]
+    prefs = (RACINE / "registre" / "preferences.md").read_text(encoding="utf-8")
+    assert "max_en_cours" not in prefs and "3 cartes" not in prefs
+
+
+def test_grille_ne_promet_plus_de_modele_par_defaut_pour_copilot():
+    grille = (RACINE / "registre" / "grille.md").read_text(encoding="utf-8")
+    assert "refus" in grille and "--reasoning-effort" in grille and "credits_ia_max" in grille
+    assert "utilise son modèle par défaut" not in grille
+
+
+def test_regle_des_registres_locaux_dans_agents_et_copilot():
+    agents = (RACINE / "AGENTS.md").read_text(encoding="utf-8")
+    assert "## Registres locaux" in agents and "registre/X.local.md" in agents and "remplace entièrement" in agents
+    copilot = (RACINE / ".github" / "copilot-instructions.md").read_text(encoding="utf-8")
+    assert "registre/X.local.md" in copilot
+
+
+def test_toute_commande_citant_un_registre_mentionne_la_regle_locale():
+    for fichier in sorted((RACINE / "commandes").glob("*.md")):
+        texte = fichier.read_text(encoding="utf-8")
+        if re.search(r"`registre/\w+\.md`", texte):
+            assert "sa version `.local.md`, voir AGENTS.md" in texte, fichier.name
 
 
 def test_requirements_dev_epingles_et_utilises_par_la_ci():

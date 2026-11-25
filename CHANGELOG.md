@@ -3,6 +3,32 @@
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versions selon
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.2.2] - 2026-11-25
+
+Premier lot pour adapter Polaris à d'autres environnements : registres personnels réellement pris en compte, grille
+alignée sur Copilot, et lanceur indépendant du Kanban. Les garde-fous ne sont pas affaiblis : il reste « une seule
+mission à la fois par projet », le verrou du journal et le fichier `donnees/STOP`.
+
+### Modifié
+
+- Registres locaux : pour tout `registre/X.md`, un `registre/X.local.md` s'il existe le **remplace entièrement** (règle
+  écrite dans `AGENTS.md`, rappelée dans `.github/copilot-instructions.md`, `docs/installation.md`,
+  `docs/installation-restreinte.md` et `docs/architecture.md`). Chaque commande qui cite un registre renvoie à cette
+  règle ; un test le vérifie. Aucun outil Python ne lit les registres : la règle est une consigne pour l'assistant.
+- `registre/grille.md` : effort Copilot transmis par `--reasoning-effort` si l'aide du CLI le liste, crédits IA
+  distincts du budget en dollars (`copilot.credits_ia_max`), nom de modèle vide = refus (et non plus « modèle par
+  défaut ») ; une valeur `auto` est annoncée pour un lot suivant.
+- `--parallele` ne « lève » plus rien : il lance seulement les missions du lot en même temps (un projet = une mission).
+- `veille.py` affiche les cartes « En cours » d'Orion en note d'information, sans seuil ni alerte.
+- `/go`, `/lancer`, `/point`, `registre/*.md`, README et docs : la règle des trois cartes est retirée.
+
+### Supprimé
+
+- Le plafond de cartes « En cours » : le lanceur ne lit plus Orion (plus de refus « trop de cartes » ni « Orion
+  illisible »). `lire_cartes_orion`, `kanban.MAX_EN_COURS` et l'alerte `cartes:en_cours` disparaissent ; la clé
+  `defauts.max_en_cours` quitte `config.exemple.json` et, si elle est encore présente, le lanceur l'annonce comme
+  ignorée.
+
 ## [0.2.1] - 2026-11-25
 
 Copilot, du clone neuf au premier lancement : options du CLI à jour, autorisation des outils clarifiée, parcours

@@ -1,0 +1,3 @@
+# Outils de développement seulement : l'exécution n'a besoin que de la bibliothèque standard.
+pytest==9.1.1
+ruff==0.16.8

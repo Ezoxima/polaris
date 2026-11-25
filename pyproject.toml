@@ -1,6 +1,6 @@
 [project]
 name = "polaris"
-version = "0.1.0"
+version = "0.1.1"
 description = "Orchestrateur conversationnel de projets pour Claude Code et GitHub Copilot"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -8,9 +8,7 @@ license = { text = "MIT" }
 authors = [{ name = "Gwenael Cochet" }]
 # Aucune dépendance à l'exécution : les outils n'utilisent que la bibliothèque standard.
 dependencies = []
-
-[project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.6"]
+# Outils de développement : requirements-dev.txt (versions fixées, une seule source).
 
 [tool.ruff]
 line-length = 120

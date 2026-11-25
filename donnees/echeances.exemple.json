@@ -1,0 +1,20 @@
+[
+  {
+    "date": "2026-12-03",
+    "libelle": "Renouveler la clé du prestataire de paiement (test)",
+    "projet": "boutique-web",
+    "carte": null
+  },
+  {
+    "date": "2026-11-20",
+    "libelle": "Livrer la maquette du tableau de bord",
+    "projet": "pipeline-ventes",
+    "carte": "Maquette du tableau de bord"
+  },
+  {
+    "date": null,
+    "libelle": "Revue trimestrielle des sauvegardes (date à fixer)",
+    "projet": "pipeline-ventes",
+    "carte": null
+  }
+]

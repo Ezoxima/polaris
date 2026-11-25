@@ -1,0 +1,23 @@
+{
+  "_note": "Exemple fictif. Copie ce fichier en veille-taches.json et remplace les tâches par les tiennes. periode_min : cadence normale ; retard_facteur : alerte « silencieuse » au-delà de periode_min × retard_facteur ; fenetre : [heure de début, heure de fin] facultative.",
+  "taches": [
+    {
+      "nom": "pipeline-ventes-nuit",
+      "projet": "pipeline-ventes",
+      "periode_min": 1440,
+      "retard_facteur": 1.5,
+      "fenetre": null,
+      "carte": null,
+      "desactivee_volontairement": false
+    },
+    {
+      "nom": "export-boutique-matin",
+      "projet": "boutique-web",
+      "periode_min": 60,
+      "retard_facteur": 3,
+      "fenetre": [7, 20],
+      "carte": "Fiabiliser l'export du catalogue",
+      "desactivee_volontairement": false
+    }
+  ]
+}

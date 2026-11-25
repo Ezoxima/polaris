@@ -1,0 +1,58 @@
+---
+type: commande
+description: Prépare le brief d'une carte, choisit modèle et effort, affiche la consommation et lance la mission
+argument-hint: <titre ou mot-clé de la carte>
+---
+
+Carte : {{arguments}}. Tu es l'orchestrateur : **tu n'écris pas de code dans les projets**, tu prépares et lances une
+mission.
+
+## 1. Vérifier (refuser sinon, en le disant)
+- Retrouve la carte (`registre/kanban.md`) et **lis sa description** (`content.body` dans la sortie de
+  `gh project item-list`) en plus des champs. Plusieurs candidates : demande laquelle. Description vide : dis-le,
+  rédige-la d'après la carte et le registre, et propose de l'enregistrer (`item-edit --body`) avant de lancer.
+- **Refus** si : déjà trois cartes « En cours » hors nature POC · carte hors « Prêt » et « En cours » (« À cadrer »
+  se cadre d'abord) · nature POC (jamais lancé directement) · taille L ou XL sans découpage (propose la première
+  mission) · une mission est déjà en cours sur **ce projet** (un autre projet ne bloque pas).
+- **Mode 3 obligatoire** (jamais de lancement sans fenêtre) si la carte, y compris sa section « Garde-fous »,
+  touche : l'argent réel, un `git push`, une commande administrateur, un mot de passe ou un code de validation,
+  une base de production, une suppression de données, une tâche planifiée, une réécriture d'historique git ou une
+  installation. Dis-le et prépare seulement le brief pour une session interactive.
+- Une seule variante par mission.
+
+## 2. Rédiger le brief
+Format exact de `registre/mission.md`, gabarit `modeles/brief.md`. Pars de la description de la carte : son
+« Contexte » alimente le contexte du brief, son « Objectif / fait quand » le critère de fin, ses « Pointeurs » la
+liste de fichiers à lire (chemins cités, pas copiés), ses « Garde-fous » les interdits. La description peut dater :
+en cas de désaccord, la **prochaine étape** et ce que je viens de te dire priment, et tu le signales. Lis la fiche
+du projet dans `registre/projets.md` (chemin, règles sensibles, porte d'entrée) ; ne lis pas les plans de reprise
+entiers, la mission le fait. Si une bibliothèque de méthodes est configurée (`registre/nova.md`), choisis 0 à 2
+fichiers et cite leur chemin après avoir vérifié qu'ils existent. Aucun secret recopié. Réserve d'abord
+l'identifiant avec `python outils/nouvel_id.py` (jamais de numéro deviné à la main), puis écris le brief dans
+`briefs/<id>.md`.
+
+## 3. Choisir modèle et effort (`registre/grille.md`)
+Le code se confie à la classe standard (effort élevé pour un chantier, moyen pour un ménage), jamais à la classe
+forte, réservée au diagnostic, à l'architecture et au cadrage (effort `high` au plus). Le léger sert aux
+traductions et aux résumés. Durée max selon la grille.
+
+## 4. Récapitulatif et accord
+Affiche : projet, carte, variante, modèle, effort, mode, durée max, permissions anticipées, **consommation estimée**
+(grille ; avertis si elle dépasse ce qui reste). Relève la consommation actuelle avec l'outil de la plateforme s'il
+en existe un, sinon demande-la-moi : ce sont les « avant ». **Attends mon accord explicite** avant de lancer ; je
+peux changer le couple choisi.
+
+## 5. Lancer (mode 2)
+- D'abord `python outils/lancer_mission.py <id> --dry-run` : il affiche le plan et refuse proprement si une
+  condition manque. Puis, après mon accord, `python outils/lancer_mission.py <id> --moteur <claude|copilot>`.
+  Jamais d'option qui contourne les permissions.
+- Le lanceur écrit `lancee` puis `terminee`, `echouee` ou `arretee` au journal et le compte rendu dans
+  `briefs/<id>-compte-rendu.md`. Il ne déplace aucune carte : fais-le à la fin.
+- À la fin, **ne crois pas le compte rendu** : relance les tests et le lint du projet, relis `git status`, `git log`
+  et `git diff --stat` (aucune référence distante changée, aucun fichier hors périmètre).
+- Mets la carte à jour : colonne, « prochaine étape », consommation mesurée, description corrigée si la mission l'a
+  rendue fausse. Ajoute la ligne `mesure` au journal avec les pourcentages d'après.
+- Permission manquante : propose (a) de l'accorder pour cette mission seulement, (b) le mode 3, (c) de redécouper ;
+  je tranche.
+- Si le chantier avait une variante et qu'il est clos : propose la carte « Répliquer dans <autre variante> »
+  (À cadrer), dont le brief pointe vers l'implémentation de référence.

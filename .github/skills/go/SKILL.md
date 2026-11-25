@@ -17,16 +17,17 @@ déjà écrits (`/lancer` rédige le brief d'une carte, `/go` lance un brief qui
 - Dry-run d'abord : `python outils/lancer_mission.py <id> [<id2> …] [--parallele] --dry-run`. Il affiche le dossier
   de travail, le modèle, l'effort, les outils autorisés, la durée et le budget, les conflits du lot, et refuse
   proprement (brief introuvable, projet absent de `config.json`, mode différent de 2, autre mission en cours **sur le
-  même projet**, trop de cartes « En cours » hors POC, Orion illisible, fichier `donnees/STOP`).
+  même projet**, fichier `donnees/STOP`). Le lanceur ne lit pas Orion et ne compte pas les cartes « En cours » : seule
+  reste la règle « une mission à la fois par projet ».
 
 ## 2. Récapitulatif et accord
 Affiche, par mission : projet, carte, variante, modèle, effort, durée max, budget, **consommation estimée**
-(`registre/grille.md`). Relève la consommation actuelle (outil de la plateforme, sinon demande-la-moi) : ce sont les
+(`registre/grille.md` ou sa version `.local.md`, voir AGENTS.md). Relève la consommation actuelle (outil de la plateforme, sinon demande-la-moi) : ce sont les
 « avant » du journal. **Attends mon accord explicite.**
 
 ## 3. Lancer
 - `--parallele` : seulement sur ma demande, pour des projets différents (deux missions d'un même projet sont refusées) ;
-  il lève le plafond des trois cartes « En cours » ; le récapitulatif donne la consommation cumulée.
+  le récapitulatif donne la consommation cumulée.
 - `python outils/lancer_mission.py <id> [<id2> …] [--parallele] [--moteur …]`, en arrière-plan quand l'outil de la
   plateforme le permet. La sortie est préfixée par l'identifiant et se termine par une ligne « Bilan ». Le lanceur
   écrit `lancee` puis `terminee`, `echouee` ou `arretee` au journal, et le compte rendu dans

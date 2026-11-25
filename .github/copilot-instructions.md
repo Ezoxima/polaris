@@ -2,6 +2,7 @@
 
 Ce dépôt est **Polaris**, un orchestrateur de projets. Le noyau (rôle, aiguillage, garde-fous) est dans
 [`AGENTS.md`](../AGENTS.md) : lis-le en entier avant de répondre, puis `registre/preferences.md`.
+Registres : si `registre/X.local.md` existe, il remplace entièrement `registre/X.md` (voir `AGENTS.md`).
 Référence : [`docs/architecture.md`](../docs/architecture.md). L'usage avec Copilot est décrit dans
 [`docs/copilot.md`](../docs/copilot.md).
 

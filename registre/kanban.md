@@ -74,8 +74,8 @@ jour : il se périme.
 
 ## Règles
 
-- **En cours : trois cartes au plus**, hors Nature = POC. GitHub ne le contrôle pas ; `/lancer` et le lanceur
-  refusent au-delà (sauf `--parallele`, choix explicite).
+- Pas de plafond de cartes « En cours » : le lanceur ne lit pas Orion. Seule règle mécanique : une seule mission à la
+  fois par projet.
 - Un POC ne se lance jamais directement : il passe par `/note` (carte « À cadrer »).
 - Jamais de suppression de carte sans demande explicite de l'utilisateur.
 - Titres en français clair.

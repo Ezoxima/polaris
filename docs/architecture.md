@@ -43,6 +43,9 @@ qui est propre à Claude Code. Copilot lit `AGENTS.md` directement ([copilot.md]
 
 ### 3.2 Le registre : `registre/`
 
+Chaque fichier `registre/X.md` peut être remplacé **entièrement** par `registre/X.local.md` (personnel, ignoré par git) :
+si ce dernier existe, on lit celui-là et jamais le générique (règle écrite dans `AGENTS.md`).
+
 - `projets.md` : une fiche par projet : chemin, statut, phase, mots-clés de reconnaissance, règles sensibles,
   tâches planifiées, secrets (**noms** seulement). Les mots-clés permettent d'aiguiller une demande
   (« le pipeline ne tourne plus ») vers le bon projet **sans relire les projets** : c'est de l'économie de jetons.
@@ -89,7 +92,8 @@ Champs : Nature (Chantier, Démarche, Décision, Script, POC), Projet, Taille (X
 final), Prochaine étape, `% 5 h` et `% hebdo` (consommation estimée ou mesurée). `outils/kanban_init.py` crée ce
 tableau et range ses identifiants dans `config.json`.
 
-- **En cours : trois cartes au plus**, hors cartes de nature POC. Le lanceur refuse au-delà.
+- Aucun plafond de cartes « En cours » : le lanceur ne lit pas Orion. Seule règle mécanique : une mission à la fois
+  par projet (verrou du journal).
 - Le champ **Projet** est un champ texte : un choix unique perdrait la valeur des cartes à chaque ajout d'option.
 - Les cartes sont des brouillons, sans dépôt lié : la description porte tout le contexte, l'état qui bouge va dans
   « Prochaine étape ».
@@ -142,7 +146,7 @@ seulement, passer en mode 3 ou redécouper. Les manques sont notés au journal.
 ## 5. Veille
 
 `outils/veille.py` détecte ce qu'on oublie **sans session IA**, donc sans consommer de quota : échéances dépassées ou
-proches, missions lancées sans fin au journal, cartes « En cours » en trop, tâches planifiées en échec (Windows,
+proches, missions lancées sans fin au journal, tâches planifiées en échec (Windows,
 lecture seule). Elle n'écrit que `donnees/veille.json` (et rien avec `--sans-ecrire`, comme le fait `/point`, car aucun
 outil ne relit ce fichier), ne crée jamais de carte ni de tâche : `/point` propose, l'utilisateur valide.
 

@@ -6,16 +6,16 @@ argument-hint: "<nom ou idée du projet, facultatif>"
 <!-- Fichier généré par outils/generer_commandes.py à partir de commandes/nouveau-projet.md : ne pas modifier à la main. -->
 
 Idée : le texte que j'écris après le nom de la commande (si c'est vide, demande-la). Mode 3 : tu es dans une session avec moi, avec la classe de modèle
-**forte** et un effort `high` au plus (`registre/grille.md`), jamais en mission automatique. Tu cadres, tu n'écris
+**forte** et un effort `high` au plus (`registre/grille.md` ou sa version `.local.md`, voir AGENTS.md), jamais en mission automatique. Tu cadres, tu n'écris
 pas de code applicatif : seulement les fichiers de cadrage ci-dessous.
 
 ## 1. Entretien (skill `creuser`, mode `complet`)
-Mène l'entretien avec la skill `creuser` : le nombre de questions par tour est celui de `registre/preferences.md`
+Mène l'entretien avec la skill `creuser` : le nombre de questions par tour est celui de `registre/preferences.md` (ou sa version `.local.md`, voir AGENTS.md)
 (une seule par défaut), avec une recommandation par question, les faits cherchés par toi. Les dix thèmes ci-dessous sont la **liste de contrôle** à couvrir avant de clore, pas un
 script : l'arbre de décisions fixe l'ordre (le type de projet ouvre les branches suivantes). Ne pose que ce que tu
 ne peux pas déduire. Un mot ambigu : demande, ne devine pas.
 1. **But et type** : quel problème, pour qui, en une phrase ; type de projet (application, script ou pipeline,
-   modélisation de données, analyse ou tableau de bord, autre — voir `registre/cadrage.md`).
+   modélisation de données, analyse ou tableau de bord, autre — voir `registre/cadrage.md` (ou sa version `.local.md`, voir AGENTS.md).
 2. **Phases POC, MVP, Livrable** : pour le POC, ce qui montrerait que ça marche (critère de sortie vérifiable) et
    ce qui est hors POC ; pour le MVP et le Livrable, ce qui est déjà connu (le reste reste « Ouvert »). Si la
    logique ne s'applique pas, une seule ligne « Livrable ».
@@ -39,7 +39,7 @@ Les réponses 1, 2, 4, 5, 6 et 10 remplissent les six sections de `CADRAGE.md` (
 Saute les questions que le type rend sans objet ; une section qui ne s'applique pas vaut « Sans objet (raison) ».
 Chaque choix porte un état : Décidé, À proposer ou Ouvert — ne transforme jamais un « plus tard » en décision.
 
-Si le projet ressemble à une brique qui existe déjà dans un autre dépôt (`registre/projets.md`), dis-le avant de
+Si le projet ressemble à une brique qui existe déjà dans un autre dépôt (`registre/projets.md` ou sa version `.local.md`, voir AGENTS.md), dis-le avant de
 repartir de zéro.
 
 ## 2. Récapitulatif et accord (rien n'est créé avant mon « ok »)
@@ -66,7 +66,7 @@ récapitulatif ne couvre pas `git init`, le commit ni l'inscription au Kanban) e
 7. Inscription au Kanban (accord séparé, sautable ; seulement si Orion est le système de suivi choisi : ne crée
    pas un second tableau à côté d'un Kanban existant) : **montre** d'abord la liste des cartes (une carte « Cadrer le POC de <nom> » de nature POC en « À
    cadrer », plus les deux à quatre cartes du premier lot, avec projet, taille, nature, prochaine étape et
-   **description** selon le modèle de `registre/kanban.md`), puis crée-les après mon accord, chacune avec `--body`.
+   **description** selon le modèle de `registre/kanban.md` (ou sa version `.local.md`, voir AGENTS.md), puis crée-les après mon accord, chacune avec `--body`.
    Un POC ne se lance jamais directement.
 8. Une ligne au journal des missions (mode 3, accord séparé : c'est une écriture dans `donnees/`) et un récapitulatif : ce qui a été créé, ce qui reste à décider, la
    prochaine commande utile (`/lancer`, `/quoi-faire`).

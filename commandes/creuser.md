@@ -14,7 +14,7 @@ La **frontière** est l'ensemble des décisions dont tous les prérequis sont r�
 sans deviner une réponse pas encore entendue.
 
 ## Tours
-- **Nombre de questions par tour** : lis `registre/preferences.md`, section « Dialogue », ligne « Questions par
+- **Nombre de questions par tour** : lis `registre/preferences.md` (ou sa version `.local.md`, voir AGENTS.md), section « Dialogue », ligne « Questions par
   tour ». Défaut si la ligne manque ou est illisible : **une seule** question à la fois, avec sa recommandation.
   Annonce en début d'entretien la valeur retenue.
 - Un tour = la frontière, **au plus ce nombre de questions** (les plus structurantes d'abord ; le reste au tour

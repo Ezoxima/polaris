@@ -133,7 +133,7 @@ polaris/
 - **Pas de lanceur automatique sans CLI d'agent.** Sur un poste où `claude` et `copilot` ne sont pas autorisés, les
   commandes conversationnelles, le registre et la veille en lecture restent utilisables ; `lancer_mission.py` et `/go`
   non. Le mode 2 se remplace par une sous-session ouverte à la main dans l'application, avec le même brief (sans
-  contrôle du plafond « En cours », sans verrou, consommation relevée à la main). Cela n'est pas éprouvé : voir
+  verrou, consommation relevée à la main). Cela n'est pas éprouvé : voir
   [docs/installation-restreinte.md](docs/installation-restreinte.md), qui donne l'essai à faire.
 - **Un seul Kanban fait autorité.** Orion est un GitHub Projects ; il n'y a pas de connecteur vers un autre système.
   Ne crée pas un second tableau à côté d'un Kanban existant.
@@ -156,8 +156,7 @@ Pistes envisagées pour une v2, sans engagement de date :
 - un lanceur automatique utilisable sans CLI d'agent ;
 - un connecteur vers un autre Kanban que GitHub Projects ;
 - un contrat de données commun pour des journaux de missions déjà existants ;
-- une revue des comportements du lanceur : commit automatique, nouvelle tentative sur limite d'usage, dépassement du
-  plafond « En cours », verrou de 3 h.
+- une revue des comportements du lanceur : commit automatique, nouvelle tentative sur limite d'usage, verrou de 3 h.
 
 ## Licence
 

@@ -52,7 +52,6 @@ d'autorisation avant de répondre.
 - effort supérieur au plafond fixé pour le modèle fort ;
 - durée max absente ou au-delà du plafond de `config.json` ;
 - autre mission en cours sur le même projet ;
-- trop de cartes « En cours » dans Orion (sauf `--parallele`, choix explicite) ;
 - présence du fichier `donnees/STOP`, qui arrête toute nouvelle mission.
 
 Côté Claude Code, `git push` et les commandes git destructrices sont interdits dans la liste d'outils de la

@@ -7,8 +7,8 @@ argument-hint: "<temps disponible ou envie, par exemple \"1 h\", \"soirée\", \"
 
 Entrée : le texte que j'écris après le nom de la commande (un temps ou une envie ; si c'est vide, demande-le en une question).
 
-1. Lis Orion (`registre/kanban.md`), colonnes **En cours** puis **Prêt** (les cartes « En attente » dont la
-   condition est levée aussi). Lis `registre/grille.md` pour la consommation, et relève la consommation actuelle
+1. Lis Orion (`registre/kanban.md` ou sa version `.local.md`, voir AGENTS.md), colonnes **En cours** puis **Prêt** (les cartes « En attente » dont la
+   condition est levée aussi). Lis `registre/grille.md` (ou sa version `.local.md`, voir AGENTS.md) pour la consommation, et relève la consommation actuelle
    avec l'outil de la plateforme s'il en existe un ; sinon demande-la-moi.
 2. Filtre : taille compatible avec le temps (XS ≈ 20 min, S ≈ 1 h, M ≈ une soirée ; L et XL jamais d'un bloc :
    propose la première étape) ; l'envie oriente le projet ; jamais une carte « En pause » ou « À cadrer », sauf une

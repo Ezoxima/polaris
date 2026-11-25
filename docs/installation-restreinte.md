@@ -17,7 +17,7 @@ rien qui crée ou modifie.
 | Capacité | Comment la constater | Sans elle, ça marche | Différé |
 |---|---|---|---|
 | CLI `claude` ou `copilot` | `Get-Command claude`, `Get-Command copilot` | commandes conversationnelles dans l'application, registre, modèles, veille en lecture, missions par sous-session lancée à la main (étape 4) | le lanceur automatique `lancer_mission.py` et `/go` |
-| `gh` connecté | `Get-Command gh`, puis `gh auth status` | tout sauf Orion | `kanban_init.py`, lecture des cartes (`/point`, `/quoi-faire`, `/lancer`), règle « cartes En cours » de la veille |
+| `gh` connecté | `Get-Command gh`, puis `gh auth status` | tout sauf Orion | `kanban_init.py`, lecture des cartes (`/point`, `/quoi-faire`, `/lancer`), lecture des cartes « En cours » par la veille |
 | Git | `git --version` | tout, sauf les commits locaux des missions | commit automatique du lanceur ; `git init` d'un nouveau projet |
 | Python 3.11 ou plus | `py -0p`, ou chemin complet (étape 2) | rien : c'est le prérequis des outils | tous les outils `outils/*.py` |
 | Droit de créer des tâches planifiées | à demander à l'administrateur du poste | tout ; la veille *lit* les tâches, elle n'en crée jamais | rien dans Polaris, qui ne crée aucune tâche |
@@ -85,7 +85,6 @@ GitHub Copilot, à qui l'on donne le brief tel quel. Le format du brief, le comp
 sont les mêmes ; seul le moyen de lancement change (à la main, au lieu du lanceur). C'est l'équivalent du mode 2 sans
 CLI, **pas encore éprouvé**. Par rapport au lanceur, il manque :
 
-- le contrôle automatique du plafond de cartes « En cours » : compte-les toi-même avant d'ouvrir la sous-session ;
 - le verrou (« une seule mission à la fois par projet ») : n'en ouvre qu'une par projet, à la main ;
 - la consommation : tu la relèves et la notes à la main, avant et après ;
 - l'écriture automatique du journal `donnees/missions.jsonl` : demande à la sous-session d'écrire sa ligne de fin, ou
@@ -158,6 +157,9 @@ Ce dépôt est public et générique. Ton registre, tes préférences et tes che
   `donnees/` (sauf les `*.exemple.json`), `config.json`, `briefs/` et `memoire/`.
 - Les fichiers de ce dépôt (`registre/projets.md`, `registre/preferences.md`…) restent des modèles génériques : si tu
   les personnalises, fais-le dans ton instance privée, pas dans une copie que tu publierais.
+- **Règle des registres locaux** : `registre/X.local.md` **remplace entièrement** `registre/X.md` (on ne lit pas le
+  générique). Copie le générique en `.local.md`, puis adapte la copie ; elle ne suit plus les mises à jour du
+  générique, à toi de la comparer après une mise à jour de Polaris.
 - Le test `tests/test_confidentialite.py` ne regarde que les fichiers **suivis** par Git (ou, sans dépôt Git, ceux
   que `.gitignore` n'écarte pas) : il ne lit pas tes fichiers locaux.
 - Ne recopie jamais un secret : on ne cite que son nom.

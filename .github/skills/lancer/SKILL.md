@@ -9,10 +9,10 @@ Carte : le texte que j'écris après le nom de la commande. Tu es l'orchestrateu
 mission.
 
 ## 1. Vérifier (refuser sinon, en le disant)
-- Retrouve la carte (`registre/kanban.md`) et **lis sa description** (`content.body` dans la sortie de
+- Retrouve la carte (`registre/kanban.md` ou sa version `.local.md`, voir AGENTS.md) et **lis sa description** (`content.body` dans la sortie de
   `gh project item-list`) en plus des champs. Plusieurs candidates : demande laquelle. Description vide : dis-le,
   rédige-la d'après la carte et le registre, et propose de l'enregistrer (`item-edit --body`) avant de lancer.
-- **Refus** si : déjà trois cartes « En cours » hors nature POC · carte hors « Prêt » et « En cours » (« À cadrer »
+- **Refus** si : carte hors « Prêt » et « En cours » (« À cadrer »
   se cadre d'abord) · nature POC (jamais lancé directement) · taille L ou XL sans découpage (propose la première
   mission) · une mission est déjà en cours sur **ce projet** (un autre projet ne bloque pas).
 - **Mode 3 obligatoire** (jamais de lancement sans fenêtre) si la carte, y compris sa section « Garde-fous »,
@@ -22,17 +22,17 @@ mission.
 - Une seule variante par mission.
 
 ## 2. Rédiger le brief
-Format exact de `registre/mission.md`, gabarit `modeles/brief.md`. Pars de la description de la carte : son
+Format exact de `registre/mission.md` (ou sa version `.local.md`, voir AGENTS.md), gabarit `modeles/brief.md`. Pars de la description de la carte : son
 « Contexte » alimente le contexte du brief, son « Objectif / fait quand » le critère de fin, ses « Pointeurs » la
 liste de fichiers à lire (chemins cités, pas copiés), ses « Garde-fous » les interdits. La description peut dater :
 en cas de désaccord, la **prochaine étape** et ce que je viens de te dire priment, et tu le signales. Lis la fiche
-du projet dans `registre/projets.md` (chemin, règles sensibles, porte d'entrée) ; ne lis pas les plans de reprise
-entiers, la mission le fait. Si une bibliothèque de méthodes est configurée (`registre/nova.md`), choisis 0 à 2
+du projet dans `registre/projets.md` (ou sa version `.local.md`, voir AGENTS.md) (chemin, règles sensibles, porte d'entrée) ; ne lis pas les plans de reprise
+entiers, la mission le fait. Si une bibliothèque de méthodes est configurée (`registre/nova.md` ou sa version `.local.md`, voir AGENTS.md), choisis 0 à 2
 fichiers et cite leur chemin après avoir vérifié qu'ils existent. Aucun secret recopié. Réserve d'abord
 l'identifiant avec `python outils/nouvel_id.py` (jamais de numéro deviné à la main), puis écris le brief dans
 `briefs/<id>.md`.
 
-## 3. Choisir modèle et effort (`registre/grille.md`)
+## 3. Choisir modèle et effort (`registre/grille.md` ou sa version `.local.md`, voir AGENTS.md)
 Le code se confie à la classe standard (effort élevé pour un chantier, moyen pour un ménage), jamais à la classe
 forte, réservée au diagnostic, à l'architecture et au cadrage (effort `high` au plus). Le léger sert aux
 traductions et aux résumés. Durée max selon la grille.

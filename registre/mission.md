@@ -37,7 +37,7 @@ python outils/lancer_mission.py m-AAAAMMJJ-NN-xxxx [autres ids] [--moteur claude
 - Sans option : les missions s'enchaînent l'une après l'autre ; la chaîne s'arrête à la première qui n'est pas
   « terminée ».
 - `--parallele` : les missions partent en même temps. **Un seul projet à la fois** : deux missions du même projet
-  sont refusées avant tout lancement. Ce choix lève le plafond des trois cartes « En cours ».
+  sont refusées avant tout lancement.
 - `--dry-run` : affiche ce qui serait lancé et les contrôles, sans rien lancer ni rien écrire.
 - Les paramètres de chaque projet (dossier, dépôt git, outils autorisés) viennent de `config.json`.
 - `donnees/STOP` (fichier vide) : plus aucune nouvelle mission ne démarre ; celles en cours finissent.

@@ -32,6 +32,11 @@ Ton instance de Polaris contient ton registre, tes briefs et ta mémoire : garde
 dossier local). Le `.gitignore` exclut déjà `config.json`, `donnees/` (sauf les exemples), `briefs/`, `memoire/` et
 `registre/*.local.md` : mets-y tes versions personnelles des registres plutôt que de modifier les fichiers génériques.
 
+**Registres locaux.** Pour chaque registre `registre/X.md`, si `registre/X.local.md` existe, **il le remplace
+entièrement** : Polaris lit celui-là et jamais le générique. Pour personnaliser, copie le générique en `.local.md`
+(`Copy-Item registre\projets.md registre\projets.local.md`), puis adapte la copie. Elle ne suit plus les mises à jour
+du générique : après une mise à jour de Polaris, compare-la à la nouvelle version du fichier générique.
+
 ## 3. Configurer
 
 ```powershell
@@ -46,7 +51,7 @@ Copy-Item config.exemple.json config.json
   que Claude peut utiliser en plus du socle, par exemple `Bash(python -m pytest*)`) ; `autorise_copilot` joue le même
   rôle pour Copilot ;
 - `moteur_par_defaut` : `claude` ou `copilot` ;
-- `defauts` : budget et durée maximale des missions, nombre de cartes « En cours » (3 par défaut) ;
+- `defauts` : budget et durée maximale des missions ;
 - `copilot.modeles` : les noms de modèles que ta version de Copilot accepte (voir [copilot.md](copilot.md)).
 
 Ne mets **jamais** de secret dans ce fichier : il ne contient que des chemins et des identifiants de tableau.
@@ -145,14 +150,16 @@ Garde-les ou modifie une ligne.
 | Quoi | Où | Comment |
 |---|---|---|
 | Dialogue, quota, Kanban, fin de session, Nova | `registre/preferences.md` | Chaque préférence a une valeur par défaut et une ligne « Pour changer » : réécris la ligne. |
-| Modèle, effort, durée max selon le type de tâche | `registre/grille.md` | Modifie le tableau ; le lanceur applique le plafond d'effort du modèle fort. |
-| Limites mécaniques (cartes « En cours », budgets, durée maximale, moteur) | `config.json`, clés `defauts` et `moteur_par_defaut` | Édite la valeur ; `preferences.md` renvoie à la clé sans la recopier. |
+| Modèle, effort, durée max selon le type de tâche | `registre/grille.md` | Copie-le en `grille.local.md` (qui le remplace entièrement) puis modifie le tableau ; le lanceur applique le plafond d'effort du modèle fort. |
+| Limites mécaniques (budgets, durée maximale, moteur) | `config.json`, clés `defauts` et `moteur_par_defaut` | Édite la valeur ; `preferences.md` renvoie à la clé sans la recopier. |
 | Projets | `registre/projets.md` et `config.json` (clé `projets`) | Une fiche et une entrée par projet (voir l'étape 5). |
 | Commandes (`/point`, `/lancer`…) | `commandes/` | Édite la source, puis `python outils/generer_commandes.py`. Ne modifie jamais `.claude/` ni `.github/skills/`. |
 | Colonnes et champs du Kanban | `outils/kanban_init.py` et `registre/kanban.md` | Change la liste dans l'outil avant de créer le tableau ; les recettes `gh` sont dans `kanban.md`. |
 | Interdits ajoutés | `registre/preferences.md`, section « Interdits ajoutés » | Écris une ligne par interdit (deux exemples y sont commentés). |
 
-Une seule source de vérité par réglage : si une valeur est dans `config.json`, c'est là qu'on la change.
+Une seule source de vérité par réglage : si une valeur est dans `config.json`, c'est là qu'on la change. Si tu as
+copié un registre en `.local.md`, c'est cette copie qu'on modifie (voir l'étape 2) ; `defauts.max_en_cours`, ancienne
+clé de `config.json`, est ignorée et le lanceur l'annonce.
 
 **Ce qui ne se retire pas.** Le socle des garde-fous (jamais de `git push`, d'argent réel, de mot de passe, de
 suppression de données, et le reste de la liste de [garde-fous.md](garde-fous.md)) n'est pas une préférence : le retirer
@@ -183,7 +190,6 @@ modifie jamais `.claude/` ni `.github/skills/` à la main : l'intégration conti
 | `Kanban non configuré` | Orion pas créé | étape 4 |
 | `gh a échoué (code 1)` | `gh` non connecté ou droit `project` absent | `gh auth login`, puis `gh auth refresh -s project` |
 | `une seule mission à la fois par projet` | une mission du même projet est en cours | attendre, ou voir le journal (le blocage tombe après 3 h) |
-| `N cartes « En cours »` | plafond du Kanban atteint | terminer une carte, ou `--parallele` si c'est voulu |
 | `Failed to start inspector` / `EADDRINUSE` au lancement d'une mission | lancé depuis l'app de bureau Claude Code, le `claude` enfant héritait de `BUN_INSPECT` (débogueur de la session parente) et visait le même port | corrigé en 0.1.2 (le lanceur retire ces variables) ; avec une version antérieure, lancer la mission depuis un terminal ordinaire |
 | `Désynchronisé` (CI ou `--verifier`) | un fichier généré a été modifié à la main | `python outils/generer_commandes.py` |
 | `REFUS : ces fichiers existent déjà et n'ont pas été générés` | une commande écrite à la main porte le même nom qu'une commande générée | compare et fusionne à la main ; `--forcer` seulement après sauvegarde ([installation-restreinte.md](installation-restreinte.md)) |

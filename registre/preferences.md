@@ -6,7 +6,7 @@ Chaque préférence a une **valeur par défaut**, en une ligne, puis **comment l
 Ce fichier règle une façon de travailler ; il **ne lève aucun garde-fou du socle** ([../docs/garde-fous.md](../docs/garde-fous.md)).
 On peut y **ajouter** des interdits (dernière section), jamais en retirer.
 
-**Une seule source de vérité par réglage.** Ce que le code applique mécaniquement (limite « En cours », budgets,
+**Une seule source de vérité par réglage.** Ce que le code applique mécaniquement (budgets,
 durée maximale, moteur) vit dans `config.json` : ici on renvoie à la clé, on ne recopie pas la valeur. La grille
 modèle / effort vit dans [grille.md](grille.md).
 
@@ -49,10 +49,10 @@ modèle / effort vit dans [grille.md](grille.md).
 
 ## Kanban (Orion)
 
-- **Défaut** : 3 cartes « En cours » au plus, hors POC. Réglé dans `config.json`, clé `defauts.max_en_cours`.
+- **Défaut** : pas de plafond de cartes « En cours » ; seule reste la règle « une mission à la fois par projet » (socle).
 - **Défaut** : en début de session, je lis la carte du chantier (colonne, « Prochaine étape », description) avant de
   commencer. Sans carte, je le dis et je n'en crée pas en lot sans ton accord.
-- *Pour changer* : la limite, dans `config.json` ; le reste, ici.
+- *Pour changer* : réécris la ligne.
 
 ## Fin de session
 

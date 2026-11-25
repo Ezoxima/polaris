@@ -24,6 +24,12 @@ quota, Kanban, fin de session, interdits ajoutés), mais ne lève aucun garde-fo
 - Commandes : `/point`, `/quoi-faire`, `/note`, `/lancer`, `/go`, `/nouveau-projet`, `/conseil` et la skill `creuser`.
   Leur source unique est `commandes/` ; `outils/generer_commandes.py` produit les versions Claude Code et Copilot.
 
+## Registres locaux
+Pour tout registre `registre/X.md` (`projets`, `preferences`, `grille`, `kanban`, `cadrage`, `nova`, `mission`), si
+`registre/X.local.md` existe, **il le remplace entièrement** : on lit celui-là et on ne lit pas le générique. Les
+fichiers `*.local.md` sont personnels (ignorés par git) ; ils ne suivent pas les mises à jour du générique. Ils ne
+lèvent aucun garde-fou du socle.
+
 ## Aiguillage
 1. **Question ou analyse** : mode 1, un sous-agent en lecture seule.
 2. **Carte « Prêt » au brief clair** : mode 2, une session sans fenêtre lancée dans le vrai dossier du projet

@@ -17,12 +17,12 @@ conseil d'avis, puis tu synthétises.
 
 ## 1. Préparer le dossier
 Rassemble **une seule base commune** que les membres liront : l'échange de cadrage (fichier ou carte indiqués,
-ou le résumé que je colle), la fiche du projet dans `registre/projets.md`, les règles du `AGENTS.md` ou du
+ou le résumé que je colle), la fiche du projet dans `registre/projets.md` (ou sa version `.local.md`, voir AGENTS.md), les règles du `AGENTS.md` ou du
 `CLAUDE.md` du projet. Cite des **chemins**, ne recopie pas de gros blocs ; aucun secret. Si le dossier est trop mince
 pour juger, dis ce qui manque et propose de le compléter avec la skill `creuser`, mode `dossier` (trois tours au
 plus) ; après mon « ok » sur son récapitulatif, ajoute-le au dossier. Si je refuse, arrête-toi.
 Formule la **question à trancher** en une ou deux phrases (par exemple « Quel MVP minimal pour l'application, et
-que repousse-t-on ? »). Si une bibliothèque de méthodes est configurée (`registre/nova.md`), choisis 0 à 2 fichiers
+que repousse-t-on ? »). Si une bibliothèque de méthodes est configurée (`registre/nova.md` ou sa version `.local.md`, voir AGENTS.md), choisis 0 à 2 fichiers
 utiles et cite-les aux membres.
 
 ## 2. Récapitulatif et accord

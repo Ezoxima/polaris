@@ -319,3 +319,41 @@ def test_le_readme_assume_les_limites_des_voies_sans_lanceur():
 def test_l_exemple_de_config_declare_la_voie_preferee_et_les_capacites():
     cfg = json.loads((RACINE / "config.exemple.json").read_text(encoding="utf-8"))
     assert cfg["voie_preferee"] == "cli" and cfg["capacites"] == {} and cfg["kanban"]["mode"] == "github"
+
+
+# ---------- 0.3.1 : commandes, Kanban et voies sans CLI ----------
+def test_toute_commande_qui_cite_orion_lit_kanban_mode_d_abord():
+    citent = []
+    for fichier in sorted((RACINE / "commandes").glob("*.md")):
+        texte = fichier.read_text(encoding="utf-8")
+        if "Orion" in texte:
+            citent.append(fichier.stem)
+            assert "kanban.mode" in texte, fichier.name
+    for nom in ("point", "quoi-faire", "note", "lancer", "nouveau-projet", "go"):
+        assert nom in citent, nom
+
+
+def test_les_commandes_de_kanban_decrivent_les_trois_modes_sans_presenter_manuel_comme_un_connecteur():
+    for nom in ("point", "quoi-faire", "note", "lancer"):
+        texte = " ".join((RACINE / "commandes" / f"{nom}.md").read_text(encoding="utf-8").split())
+        for mode in ("`github`", "`manuel`", "`aucun`"):
+            assert mode in texte, (nom, mode)
+        assert "Clé absente" in texte and "compatibilité" in texte, nom
+        assert "connecteur" not in texte.lower(), nom
+    assert "aucune intégration" in (RACINE / "commandes" / "configurer.md").read_text(encoding="utf-8")
+
+
+def test_go_et_lancer_font_un_dry_run_selon_la_voie_sans_exiger_de_cli():
+    for nom in ("go", "lancer"):
+        texte = " ".join((RACINE / "commandes" / f"{nom}.md").read_text(encoding="utf-8").split())
+        assert "--prompt --voie" in texte and "--dry-run" in texte, nom
+        assert "pas de CLI exigé" in texte or "n'exige aucun CLI" in texte, nom
+        assert "briefs/<id>-prompt.md" in texte and "`preparee`" in texte, nom
+        assert "avant toute écriture" in texte, nom
+
+
+def test_estimation_de_consommation_indisponible_est_ecrite_dans_go_lancer_et_la_grille():
+    for chemin in ("commandes/go.md", "commandes/lancer.md", "registre/grille.md"):
+        texte = " ".join((RACINE / chemin).read_text(encoding="utf-8").split())
+        assert "estimation indisponible" in texte.lower(), chemin
+        assert "n'invente aucun chiffre" in texte.lower() or "ne rien inventer" in texte.lower(), chemin

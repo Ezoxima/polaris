@@ -6,7 +6,7 @@ model: "haiku"
 
 Fais le point sur tous mes projets : court (25 lignes au plus), en français clair, sans lire de plan de reprise.
 
-1. Lis Orion (recettes : `registre/kanban.md` (ou sa version `.local.md`, voir AGENTS.md) : toutes les cartes.
+1. **Kanban d'abord** : lis `kanban.mode` dans `config.json` avant toute lecture ou écriture d'Orion. `github` : lis toutes les cartes d'Orion (recettes : `registre/kanban.md`, ou sa version `.local.md`, voir AGENTS.md). `manuel` : Polaris ne lit aucune carte : demande-moi l'état de mon outil (en cours, bloqué, échéances) ou passe à l'étape suivante en le disant. `aucun` : la partie cartes est sautée et annoncée en une ligne ; le reste du point continue. Clé absente : traite comme `github` (compatibilité) et dis-le en une ligne.
 2. Lis `registre/projets.md` (ou sa version `.local.md`, voir AGENTS.md) (échéances, tâches planifiées) et les 5 dernières lignes de `donnees/missions.jsonl`.
    Lance `python outils/veille.py --sans-ecrire` : elle lit ses sources, n'écrit aucun fichier et ne crée aucune carte
    ni aucune tâche.

@@ -57,6 +57,11 @@ calibration se fait après quelques missions de chaque type.
 | Diagnostic, fort `high` | à mesurer | à mesurer | 0 |
 | Résumé, léger `low` | à mesurer | à mesurer | 0 |
 
+**Plateforme sans relevé de consommation** (aucun pourcentage affiché, grille sans mesure) : pour la première
+mission, le récapitulatif dit « estimation indisponible », donne l'unité de la plateforme si elle est connue (crédits
+IA, requêtes premium) et demande l'accord quand même ; aucun chiffre n'est inventé. La règle est la même dans `/go` et
+`/lancer`.
+
 Repères de calibration, à confirmer chez toi : une mission bien balisée (fichiers cités, critère de fin, périmètre)
 coûte peu et dure moins d'une demi-heure ; la consommation vient surtout du **contexte de la session de Polaris**,
 relu à chaque échange. Avant de lancer une chaîne de missions, compacter ou ouvrir une session neuve.

@@ -6,8 +6,8 @@ argument-hint: "<temps disponible ou envie, par exemple \"1 h\", \"soirée\", \"
 
 Entrée : `$ARGUMENTS` (un temps ou une envie ; si c'est vide, demande-le en une question).
 
-1. Lis Orion (`registre/kanban.md` ou sa version `.local.md`, voir AGENTS.md), colonnes **En cours** puis **Prêt** (les cartes « En attente » dont la
-   condition est levée aussi). Lis `registre/grille.md` (ou sa version `.local.md`, voir AGENTS.md) pour la consommation, et relève la consommation actuelle
+1. **Kanban d'abord** : lis `kanban.mode` dans `config.json` avant toute lecture ou écriture d'Orion. `github` : lis Orion (`registre/kanban.md` ou sa version `.local.md`, voir AGENTS.md), colonnes **En cours** puis **Prêt** (les cartes « En attente » dont la condition est levée aussi). `manuel` : aucune lecture, demande-moi la liste de mes cartes prêtes (titre, projet, taille) ou mon envie, et propose d'après cela. `aucun` : pas de cartes : propose d'après ce que je te dis et d'après `registre/projets.md`, et annonce-le. Clé absente : traite comme `github` (compatibilité) et dis-le en une ligne.
+   Lis `registre/grille.md` (ou sa version `.local.md`, voir AGENTS.md) pour la consommation, et relève la consommation actuelle
    avec l'outil de la plateforme s'il en existe un ; sinon demande-la-moi.
 2. Filtre : taille compatible avec le temps (XS ≈ 20 min, S ≈ 1 h, M ≈ une soirée ; L et XL jamais d'un bloc :
    propose la première étape) ; l'envie oriente le projet ; jamais une carte « En pause » ou « À cadrer », sauf une

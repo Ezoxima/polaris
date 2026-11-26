@@ -63,8 +63,10 @@ récapitulatif ne couvre pas `git init`, le commit ni l'inscription au Kanban) e
    « État au JJ/MM » est le cadrage.
 6. `registre/projets.md` : la fiche au format du modèle, **Phase : POC** ; `memoire/INDEX.md` de Polaris : une ligne.
    Ajoute aussi le projet à `config.json` (clé `projets`) pour que le lanceur le connaisse : montre-moi la ligne.
-7. Inscription au Kanban (accord séparé, sautable ; seulement si Orion est le système de suivi choisi : ne crée
-   pas un second tableau à côté d'un Kanban existant) : **montre** d'abord la liste des cartes (une carte « Cadrer le POC de <nom> » de nature POC en « À
+7. Inscription au Kanban (accord séparé, sautable). Lis d'abord `kanban.mode` dans `config.json` : `github` = la
+   procédure ci-dessous (ne crée pas un second tableau à côté d'un Kanban existant) ; `manuel` = Polaris ne lit ni
+   n'écrit rien dans Orion, il montre les cartes à recopier dans mon outil ; `aucun` = étape sautée et annoncée.
+   Clé absente : `github` (compatibilité), annoncé. Pour `github` : **montre** d'abord la liste des cartes (une carte « Cadrer le POC de <nom> » de nature POC en « À
    cadrer », plus les deux à quatre cartes du premier lot, avec projet, taille, nature, prochaine étape et
    **description** selon le modèle de `registre/kanban.md` (ou sa version `.local.md`, voir AGENTS.md), puis crée-les après mon accord, chacune avec `--body`.
    Un POC ne se lance jamais directement.

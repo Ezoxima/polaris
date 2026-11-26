@@ -2,7 +2,7 @@
 
 ## Spécifique à Claude Code
 
-- Les commandes `/point`, `/quoi-faire`, `/note`, `/lancer`, `/go`, `/nouveau-projet` et `/conseil` sont dans
+- Les commandes `/configurer`, `/point`, `/quoi-faire`, `/note`, `/lancer`, `/go`, `/nouveau-projet` et `/conseil` sont dans
   `.claude/commands/`, la skill `creuser` dans `.claude/skills/creuser/`. Ces fichiers sont **générés** : on
   modifie la source dans `commandes/`, puis on lance `python outils/generer_commandes.py`.
 - Mode 1 : un sous-agent en lecture seule (outil `Agent`, sans outils d'écriture).

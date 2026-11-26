@@ -22,6 +22,10 @@ rien qui crée ou modifie.
 | Python 3.11 ou plus | `py -0p`, ou chemin complet (étape 2) | rien : c'est le prérequis des outils | tous les outils `outils/*.py` |
 | Droit de créer des tâches planifiées | à demander à l'administrateur du poste | tout ; la veille *lit* les tâches, elle n'en crée jamais | rien dans Polaris, qui ne crée aucune tâche |
 
+`python outils/capacites.py` fait cet inventaire pour toi, en local et sans écrire (`--ecrire` enregistre le résultat
+dans `config.json`) ; la commande `/configurer` le déroule en conversation. Un échec de détection s'y affiche
+« non testé » avec sa cause, jamais « disponible ».
+
 Note le résultat. Une ligne « absent » n'est pas un problème à régler : c'est une limite à connaître. N'installe rien
 pour la combler sans accord explicite de la personne qui administre le poste.
 
@@ -80,8 +84,10 @@ Ce qui fonctionne sans `claude` ni `copilot` : le registre et les préférences 
 générateur de commandes.
 
 **Le mode 2 sans CLI : une sous-session.** Le lanceur `lancer_mission.py` (et donc `/go`) appelle une CLI : il reste
-hors de portée. On le remplace par une **sous-session**, une session dédiée ouverte à la main dans l'application
-GitHub Copilot, à qui l'on donne le brief tel quel. Le format du brief, le compte rendu, le journal et les accords
+hors de portée. On le remplace par une **sous-session**, une session dédiée dans l'application GitHub Copilot, à qui
+l'on donne le prompt autonome écrit par `python outils/lancer_mission.py --prompt <id>` (fichier
+`briefs/<id>-prompt.md`, journal `preparee`) : à coller dans une nouvelle session, ou à faire ouvrir par l'application
+si elle sait créer des sous-sessions (observé sur une version). Le format du brief, le compte rendu, le journal et les accords
 sont les mêmes ; seul le moyen de lancement change (à la main, au lieu du lanceur). C'est l'équivalent du mode 2 sans
 CLI, **pas encore éprouvé**. Par rapport au lanceur, il manque :
 
@@ -95,7 +101,8 @@ Si tu utilises quand même le lanceur avec Copilot (CLI disponible), la configur
 ce que Copilot charge au démarrage et l'essai pour le vérifier sont dans
 [copilot.md](copilot.md#application-seule-sans-cli).
 
-Seul le lanceur automatique reste hors lot (voir la feuille de route du README).
+Le tableau complet des contrôles par voie est dans [architecture.md](architecture.md#mode-2-par-paliers). Après un
+refus de permission ou un échec, on s'arrête : on ne change pas de voie de soi-même.
 
 Honnêteté : le fonctionnement des commandes de Polaris dans l'application seule n'a **pas été éprouvé** (voir
 [copilot.md](copilot.md)). Fais cet essai, dans l'ordre, et note ce qui diffère :

@@ -27,6 +27,14 @@ la suivante.
 Ces actions passent par le **mode 3** : une session interactive, où l'utilisateur lit chaque demande
 d'autorisation avant de répondre.
 
+## Voies sans lanceur
+
+Le lanceur applique mécaniquement la liste d'outils, la durée max, le verrou par projet, le journal et l'arrêt
+d'urgence. Les voies `sous_session` et `prompt` (voir [architecture.md](architecture.md#mode-2-par-paliers)) ne
+garantissent **aucun** de ces contrôles : ce sont les réglages de la session ouverte qui s'appliquent. Les garde-fous
+du socle valent toujours, écrits dans le prompt ; ils reposent alors sur la session, pas sur un outil. Aucun passage
+d'une voie à l'autre ne se fait sans l'accord de l'utilisateur, en particulier après un refus de permission.
+
 ## Règles de conduite
 
 - **Les secrets ne sont jamais recopiés** dans un brief, un journal, une carte ou un compte rendu. On cite leur

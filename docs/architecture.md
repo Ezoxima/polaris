@@ -110,6 +110,7 @@ tableau et range ses identifiants dans `config.json`.
 | `/go` | Lance un ou plusieurs briefs déjà écrits via `outils/lancer_mission.py` |
 | `/nouveau-projet` | Entretien de cadrage, dossier, fiche du registre, cartes (phase POC) |
 | `/conseil` | Quatre avis contradictoires sur un cadrage, sur demande seulement |
+| `/configurer` | Accueil : inventaire des capacités, projets, Kanban, voie de lancement, modèles ; une question à la fois |
 | `creuser` (skill) | Entretien serré, une recommandation par question, utilisé par les commandes ci-dessus |
 
 Les sources sont dans `commandes/` ; `outils/generer_commandes.py` produit les fichiers de Claude Code
@@ -129,6 +130,37 @@ signalé, jamais prétendu appliqué. Le `AGENTS.md` du projet prime. Un index d
 | **1. Sous-agent** | Question, analyse, inventaire | Agent en lecture seule dans la session de Polaris | Ne modifie rien ; ne charge pas seul les règles du projet (le brief le lui fait lire) |
 | **2. Session sans fenêtre** | Carte « Prêt » au brief clair | Lanceur : `claude -p` ou `copilot -p` dans le vrai dossier du projet | Ne peut pas demander d'autorisation : liste blanche d'actions |
 | **3. Session interactive** | Cadrage, décision, argent réel, administration | Polaris prépare le brief ; l'utilisateur pilote la session | Coûte du temps de l'utilisateur |
+
+### Mode 2 par paliers
+
+Le mode 2 se lance par la meilleure voie **disponible**, que `python outils/capacites.py --voie` propose d'après
+l'inventaire des capacités du poste et la préférence `voie_preferee` de `config.json`. L'utilisateur accepte la voie
+dans le récapitulatif ; elle n'est jamais choisie en silence.
+
+- **`cli`** : le lanceur (`outils/lancer_mission.py <id>`), qui applique tous les contrôles ci-dessous.
+- **`sous_session`** : la plateforme ouvre une session avec le prompt autonome (`outils/lancer_mission.py --prompt
+  <id> --voie sous_session`).
+- **`prompt`** : le même texte, à copier dans une nouvelle session (`--prompt <id>`).
+
+`--prompt` écrit `briefs/<id>-prompt.md` (projet, contexte, périmètre, garde-fous, critère de fin, compte rendu
+attendu, recommandation de modèle et d'effort, liste des contrôles non garantis) et note `preparee` au journal ; il ne
+lance rien.
+
+Contrôles garantis, par voie (ce tableau est produit par `outils/capacites.py` ; un test le garde à l'identique) :
+
+<!-- debut tableau controles -->
+| Contrôle | cli | sous_session | prompt |
+|---|---|---|---|
+| verrou par projet (une mission à la fois) | oui — refus si une autre mission est en cours sur le même projet | non — rien n'empêche deux missions sur le même projet : vérifie à la main | non — rien n'empêche deux missions sur le même projet : vérifie à la main |
+| durée max | oui — arrêt de l'arbre de processus à la durée du brief | non — aucun arrêt automatique : surveille la session | non — aucun arrêt automatique : surveille la session |
+| journal automatique | oui — `lancee`, puis `terminee`, `echouee` ou `arretee` | non — seule `preparee` est écrite ; lancement et fin sont à noter à la main | non — seule `preparee` est écrite ; lancement et fin sont à noter à la main |
+| permissions (liste d'outils) | oui — liste d'outils autorisés et interdits passée en ligne de commande | non — réglages de la plateforme, pas la liste d'outils de Polaris | non — réglages de la session où tu colles le prompt, pas la liste d'outils de Polaris |
+| relevé de consommation | partiel — Claude : coût lu ; Copilot : fichier d'usage si l'option existe, format non garanti | non — à relever à la main | non — à relever à la main |
+| arrêt d'urgence donnees/STOP | oui — plus aucune nouvelle mission ne démarre ; celle en cours finit | non — `donnees/STOP` n'est lu que par le lanceur | non — `donnees/STOP` n'est lu que par le lanceur |
+<!-- fin tableau controles -->
+
+Une voie de repli n'est **jamais équivalente** au lanceur : le récapitulatif dit ce qui manque. **Après un refus de
+permission ou un échec, on s'arrête et on explique** ; on ne passe pas de soi-même à une autre voie.
 
 **Quand une session sans fenêtre manque d'une permission** : *avant*, le brief liste les permissions anticipées et
 Polaris vérifie qu'elles sont dans la liste blanche ; *pendant*, l'action refusée n'est pas contournée et la session

@@ -39,6 +39,13 @@ du générique : après une mise à jour de Polaris, compare-la à la nouvelle v
 
 ## 3. Configurer
 
+**Recommandé : l'accueil `/configurer`.** Ouvre une session dans le dossier de Polaris et lance `/configurer` : une
+question à la fois, il inventorie ce qui est disponible sur ton poste (`python outils/capacites.py`), déclare tes
+projets, règle le Kanban (GitHub Projects, autre outil en mode manuel, ou aucun), choisit la voie de lancement et la
+stratégie de modèle, et n'écrit un fichier qu'après t'avoir montré le diff. `/configurer modeles` (ou `projets`,
+`kanban`, `voie`, `inventaire`) relance une seule section. La suite de cette étape décrit la même configuration à la
+main.
+
 ```powershell
 Copy-Item config.exemple.json config.json
 ```
@@ -52,7 +59,10 @@ Copy-Item config.exemple.json config.json
   rôle pour Copilot ;
 - `moteur_par_defaut` : `claude` ou `copilot` ;
 - `defauts` : budget et durée maximale des missions ;
-- `copilot.modeles` : les noms de modèles que ta version de Copilot accepte (voir [copilot.md](copilot.md)).
+- `copilot.modeles` : les noms de modèles que ta version de Copilot accepte, ou `auto` si l'aide de ton CLI le
+  documente (voir [copilot.md](copilot.md)) ;
+- `voie_preferee` : `cli`, `sous_session` ou `prompt` (voir [architecture.md](architecture.md#mode-2-par-paliers)) ;
+- `capacites` : écrite par `python outils/capacites.py --ecrire` ; une capacité déclarée à la main n'est jamais écrasée.
 
 Ne mets **jamais** de secret dans ce fichier : il ne contient que des chemins et des identifiants de tableau.
 
@@ -169,7 +179,8 @@ modifier `AGENTS.md` et `docs/garde-fous.md`, en connaissance de cause et pour u
 ## 9. Utiliser Polaris
 
 **Claude Code** : ouvre une session dans le dossier de Polaris. `CLAUDE.md` charge `AGENTS.md` ; les commandes
-`/point`, `/quoi-faire`, `/note`, `/lancer`, `/go`, `/nouveau-projet`, `/conseil` et la skill `creuser` sont disponibles.
+`/configurer`, `/point`, `/quoi-faire`, `/note`, `/lancer`, `/go`, `/nouveau-projet`, `/conseil` et la skill `creuser` sont
+disponibles.
 
 **Copilot** : ouvre le dossier de Polaris dans Copilot (CLI, VS Code ou application). `AGENTS.md` est le noyau et
 `.github/copilot-instructions.md` y renvoie ; les commandes sont des skills (`.github/skills/`). Lis

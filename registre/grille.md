@@ -15,7 +15,9 @@ l'utilisateur peut le changer.
 
 Les noms de modèles changent vite. Pour Copilot, ils se déclarent dans `config.json` (clé `copilot.modeles`) : un nom
 vide pour la classe demandée est un **refus** du lanceur (il n'envoie jamais de modèle « par défaut » à ta place).
-Une valeur `auto` (laisser la plateforme choisir) est prévue au lot suivant ; elle n'est pas disponible ici.
+**Stratégie `auto`** : la valeur `"auto"` (laisser Copilot choisir) est un choix explicite ; le lanceur la transmet
+**seulement si** l'aide de ton CLI la documente pour `--model`, sinon il refuse. Le modèle réellement utilisé est
+`currentModel` du fichier d'usage s'il est présent, sinon « non relevé » : il n'est jamais déduit.
 
 ## Grille
 

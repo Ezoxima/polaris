@@ -63,15 +63,18 @@ Une ligne JSON par événement.
 | Champ | Contenu |
 |---|---|
 | `ts` | horodatage ISO 8601 (UTC) |
-| `evenement` | `creee`, `lancee`, `terminee`, `echouee`, `arretee`, `permission_manquante` ou `mesure` |
+| `evenement` | `creee`, `preparee`, `lancee`, `terminee`, `echouee`, `arretee`, `permission_manquante` ou `mesure` |
 | `mission` | identifiant `m-AAAAMMJJ-NN-xxxx` |
 | `projet`, `carte`, `variante` | repères (`variante` peut être `null`) |
 | `modele`, `effort`, `mode` | le couple choisi et le mode 1, 2 ou 3 |
 | `moteur` | `claude` ou `copilot` |
+| `voie` | `cli` (lanceur), `prompt` ou `sous_session` (voies sans lanceur, événement `preparee`) |
+| `modele_reel` | Copilot seulement : `currentModel` du fichier d'usage, ou « non relevé » (jamais déduit) ; `modele` reste la classe demandée |
 | `session_id` | identifiant de la session, si la plateforme le donne |
 | `conso_avant`, `conso_apres` | consommation relevée (la fenêtre courte, en %) |
 | `conso_hebdo_avant`, `conso_hebdo_apres` | consommation hebdomadaire relevée (en %) |
 | `note` | une phrase, **jamais de secret** |
 
-Le lanceur écrit `lancee`, puis `terminee`, `echouee` ou `arretee`. Les lignes `creee`, `mesure` et
-`permission_manquante` sont écrites par Polaris ou à la main.
+Le lanceur écrit `lancee`, puis `terminee`, `echouee` ou `arretee`. `lancer_mission.py --prompt` écrit `preparee` : un
+prompt a été préparé, **rien n'a été lancé** ; le lancement et la fin de cette voie se notent à la main. Les lignes
+`creee`, `mesure` et `permission_manquante` sont écrites par Polaris ou à la main.

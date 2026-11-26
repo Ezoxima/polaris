@@ -21,7 +21,7 @@ quota, Kanban, fin de session, interdits ajoutés), mais ne lève aucun garde-fo
 - `registre/cadrage.md` : modèle de cadrage d'un nouveau projet.
 - `modeles/` : gabarits vides du brief, du compte rendu et du fichier de mémoire d'un axe.
 - `memoire/INDEX.md` : index général ; chaque projet a `memoire/INDEX.md` et un fichier par axe.
-- Commandes : `/point`, `/quoi-faire`, `/note`, `/lancer`, `/go`, `/nouveau-projet`, `/conseil` et la skill `creuser`.
+- Commandes : `/configurer`, `/point`, `/quoi-faire`, `/note`, `/lancer`, `/go`, `/nouveau-projet`, `/conseil` et la skill `creuser`.
   Leur source unique est `commandes/` ; `outils/generer_commandes.py` produit les versions Claude Code et Copilot.
 
 ## Registres locaux

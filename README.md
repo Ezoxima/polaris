@@ -73,7 +73,8 @@ python outils/veille.py --exemples --sans-ecrire # essai de la veille sur des do
 ```
 
 **Avec Claude Code** : ouvre une session dans le dossier `polaris`. `CLAUDE.md` charge `AGENTS.md` ; les commandes
-`/point`, `/quoi-faire`, `/note`, `/lancer`, `/go`, `/nouveau-projet`, `/conseil` et la skill `creuser` sont prêtes.
+`/configurer` (accueil conversationnel : commence par là), `/point`, `/quoi-faire`, `/note`, `/lancer`, `/go`,
+`/nouveau-projet`, `/conseil` et la skill `creuser` sont prêtes.
 
 **Avec GitHub Copilot** : ouvre le dossier dans Copilot (CLI ou VS Code). `AGENTS.md` est le noyau et les commandes sont
 des skills dans `.github/skills/`. Plusieurs points ne sont pas encore testés : voir [docs/copilot.md](docs/copilot.md).
@@ -95,7 +96,8 @@ garanti, dossier existant sans Git, Kanban déjà en place) :
 | Outil | Rôle |
 |---|---|
 | `outils/kanban_init.py` | crée le tableau Orion (six colonnes, sept champs) et range ses identifiants dans `config.json` ; `--dry-run` ; refuse si un tableau existe ; ne supprime rien |
-| `outils/lancer_mission.py` | lance des missions briefées, en séquence ou en parallèle (un seul projet à la fois), moteur `claude` ou `copilot`, journal JSONL, `--dry-run` |
+| `outils/lancer_mission.py` | lance des missions briefées, en séquence ou en parallèle (un seul projet à la fois), moteur `claude` ou `copilot`, journal JSONL, `--dry-run` ; `--prompt` prépare à la place un prompt autonome pour une session sans lanceur |
+| `outils/capacites.py` | inventaire local des capacités du poste (disponible, indisponible, non testé), déclarations à la main, voie de lancement proposée ; n'écrit rien sans `--ecrire` |
 | `outils/veille.py` | détecte échéances oubliées, missions sans fin, cartes en trop et tâches planifiées en échec, sans session d'IA ni quota |
 | `outils/generer_commandes.py` | produit les commandes de Claude Code et de Copilot depuis la source unique `commandes/` ; `--verifier` pour la CI |
 | `outils/nouvel_id.py` | réserve un identifiant de mission unique |
@@ -130,6 +132,13 @@ polaris/
   six colonnes, sept champs relus sur GitHub, identifiants écrits dans `config.json`, et refus d'un titre déjà pris.
   Les tests, eux, simulent `gh`. Lis le `--dry-run` (il n'appelle pas `gh` : il ne voit donc pas un titre déjà pris),
   puis vérifie le tableau obtenu.
+- **Sous-session et prompt : des contrôles manquent.** Sans le lanceur, rien n'applique le verrou par projet, la durée
+  max, le journal automatique, la liste d'outils, le relevé de consommation ni `donnees/STOP` : seule la voie `cli` les
+  garantit, et aucune voie de repli ne lui est équivalente (tableau dans
+  [docs/architecture.md](docs/architecture.md#mode-2-par-paliers)).
+- **Les skills dans l'application Copilot ne sont pas éprouvées** : elles figurent dans sa liste, leur exécution et le
+  menu `/` n'ont pas été vérifiés. `--allow-all-tools` n'a pas été testé non plus (priorité de `--deny-tool` inconnue) :
+  il reste désactivé et déconseillé.
 - **Pas de lanceur automatique sans CLI d'agent.** Sur un poste où `claude` et `copilot` ne sont pas autorisés, les
   commandes conversationnelles, le registre et la veille en lecture restent utilisables ; `lancer_mission.py` et `/go`
   non. Le mode 2 se remplace par une sous-session ouverte à la main dans l'application, avec le même brief (sans
@@ -152,7 +161,6 @@ Pistes envisagées pour une v2, sans engagement de date :
 - un outil de renouvellement des jetons d'accès avant leur échéance ;
 - des agents Copilot en lecture seule et des hooks de blocage ;
 - des adaptateurs pour d'autres tableaux que GitHub Projects ;
-- un entretien de paramétrage guidé, `/parametrage` ;
 - un lanceur automatique utilisable sans CLI d'agent ;
 - un connecteur vers un autre Kanban que GitHub Projects ;
 - un contrat de données commun pour des journaux de missions déjà existants ;

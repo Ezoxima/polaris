@@ -133,3 +133,20 @@ def sortie_utf8() -> None:
         reconfigurer = getattr(flux, "reconfigure", None)
         if reconfigurer is not None:
             reconfigurer(encoding="utf-8", errors="replace")
+
+
+SOURCE_MOTEUR_OPTION = "option --moteur"
+SOURCE_MOTEUR_CONFIG = "config.json, `moteur_par_defaut`"
+SOURCE_MOTEUR_DEFAUT = "défaut : moteur non configuré, `claude` par défaut (lance /configurer pour choisir)"
+
+
+def choisir_moteur(option: str | None, config: dict[str, Any]) -> tuple[str, str]:
+    """Moteur visé et sa SOURCE : `--moteur`, sinon `moteur_par_defaut` de config.json, sinon `claude` par défaut.
+
+    Le défaut n'est jamais présenté comme un choix de l'utilisateur : la source est dite au dry-run et au journal."""
+    if option:
+        return option, SOURCE_MOTEUR_OPTION
+    configure = config.get("moteur_par_defaut")
+    if isinstance(configure, str) and configure.strip():
+        return configure.strip(), SOURCE_MOTEUR_CONFIG
+    return "claude", SOURCE_MOTEUR_DEFAUT

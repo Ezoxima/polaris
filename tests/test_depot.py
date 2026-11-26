@@ -75,7 +75,21 @@ def test_les_exemples_sont_du_json_valide():
 def test_la_config_exemple_ne_contient_aucun_tableau_ni_secret():
     cfg = json.loads((RACINE / "config.exemple.json").read_text(encoding="utf-8"))
     assert cfg["kanban"]["numero"] is None and cfg["kanban"]["projet_id"] == "" and cfg["kanban"]["champs"] == {}
-    assert all(v == "" for v in cfg["copilot"]["modeles"].values())
+    assert "modeles" not in cfg["copilot"]  # jamais de valeur vide : /configurer modeles écrit les noms
+
+
+def test_la_config_exemple_ne_contient_aucun_modele_vide_ni_moteur_impose():
+    cfg = json.loads((RACINE / "config.exemple.json").read_text(encoding="utf-8"))
+
+    def vides(x, chemin=""):
+        if isinstance(x, dict):
+            for k, v in x.items():
+                yield from vides(v, f"{chemin}/{k}")
+        elif isinstance(x, str) and not x.strip() and "modele" in chemin:
+            yield chemin
+
+    assert list(vides(cfg)) == []
+    assert "moteur_par_defaut" not in cfg  # le moteur est un choix de /configurer, pas une valeur d'exemple
 
 
 def test_licence_mit_au_nom_de_l_auteur():

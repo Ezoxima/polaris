@@ -336,10 +336,20 @@ def test_copilot_commande_et_notes(tmp_path):
     assert p.options_detectees == [] and p.options_transmises == []
 
 
-@pytest.mark.parametrize("extra", [{"copilot": {"modeles": {"sonnet": "  "}}}, {"copilot": {}}, {"copilot": 3}])
-def test_copilot_sans_modele_declare_refuse_et_nomme_la_cle(tmp_path, extra):
+@pytest.mark.parametrize(
+    "extra",
+    [{"copilot": {}}, {"copilot": 3}, {"copilot": {"modeles": {"opus": "m"}}}],
+)
+def test_copilot_classe_absente_refuse_et_renvoie_a_configurer_modeles(tmp_path, extra):
     racine = monde(tmp_path, extra=extra)
-    with pytest.raises(lm.Refus, match=r"copilot\.modeles\.sonnet"):
+    with pytest.raises(lm.Refus, match=r"aucun modèle configuré pour la classe « sonnet ».*/configurer modeles"):
+        preparer(racine, moteur="copilot")
+
+
+@pytest.mark.parametrize("valeur", ["", "  "])
+def test_copilot_modele_vide_reste_refuse(tmp_path, valeur):
+    racine = monde(tmp_path, extra={"copilot": {"modeles": {"sonnet": valeur}}})
+    with pytest.raises(lm.Refus, match=r"vide.*copilot\.modeles\.sonnet"):
         preparer(racine, moteur="copilot")
 
 
@@ -1195,7 +1205,9 @@ def test_prompt_sous_session_meme_texte_mais_voie_notee(tmp_path):
     t1, t2 = lire_prompt(r1), lire_prompt(r2)
     assert "voie « prompt »" in t1 and "voie « sous_session »" in t2
     corps = lambda t: t.split("## Projet et contexte", 1)[1].split("## Contrôles NON garantis", 1)[0]  # noqa: E731
-    assert corps(t1) == corps(t2).replace(str(tmp_path / "b"), str(tmp_path / "a"))
+    assert corps(t1) == corps(t2).replace(str(tmp_path / "b"), str(tmp_path / "a")).replace(
+        "--voie sous_session", "--voie prompt"
+    )
     assert journal(r1)[-1]["voie"] == "prompt" and journal(r2)[-1]["voie"] == "sous_session"
 
 
@@ -1492,3 +1504,155 @@ def test_claude_sans_liste_de_refus_ou_sortie_illisible_est_non_releve(tmp_path)
     racine2 = monde(tmp_path / "2")
     assert aller(racine2, ID, executer=FauxExecuteur(lm.Sortie("pas du json", "", False, 5.0, 0))) == 1
     assert "non relevé" in compte_rendu(racine2) and "0 refus" not in journal(racine2)[-1]["note"]
+
+
+# ---------- 0.3.2 : pied et prompt selon Git et kanban.mode ----------
+MODES_KB = ["github", "manuel", "aucun", None]  # None : clé absente = github
+
+
+def _config_kb(mode):
+    return {} if mode is None else {"kanban": {"mode": mode}}
+
+
+def _verifier_pied(texte, avec_git, mode):
+    assert "{colonnes}" not in texte and "{jour}" not in texte
+    if avec_git:
+        assert "git status --short" in texte and "hash du commit" in texte and "git add <chemins explicites>" in texte
+        assert "Pas de dépôt suivi" not in texte
+    else:
+        assert "hash du commit" not in texte and "git status --short" not in texte and "git add" not in texte
+        assert texte.count("Pas de dépôt suivi : aucun commit") == 1
+        assert "liste des fichiers modifiés" in texte
+    assert "Jamais `git push`" in texte
+    carte = "## Carte (colonne proposée"
+    manuel = "## Kanban (à reporter à la main"
+    if mode in ("github", None):
+        assert carte in texte and manuel not in texte and ", ".join(kanban.COLONNES) in texte
+    elif mode == "manuel":
+        assert manuel in texte and carte not in texte and "aucun outil ne lira" in texte
+    else:
+        assert carte not in texte and manuel not in texte and "## Kanban" not in texte
+    assert "## Journal d'axe" in texte and "## Reste à décider par l'utilisateur" in texte
+
+
+@pytest.mark.parametrize("mode", MODES_KB)
+@pytest.mark.parametrize("projet,avec_git", [("demo", True), ("sansgit", False)])
+@pytest.mark.parametrize("moteur", ["claude", "copilot"])
+def test_pied_de_la_voie_cli_selon_git_et_kanban(tmp_path, projet, avec_git, mode, moteur):
+    racine = monde(tmp_path, texte=brief(projet=projet), extra=_config_kb(mode))
+    plan = preparer(racine, moteur=moteur)
+    _verifier_pied(plan.prompt, avec_git, mode)
+
+
+@pytest.mark.parametrize("mode", MODES_KB)
+@pytest.mark.parametrize("projet,avec_git", [("demo", True), ("sansgit", False)])
+@pytest.mark.parametrize("voie", ["prompt", "sous_session"])
+def test_pied_du_prompt_autonome_selon_git_et_kanban(tmp_path, projet, avec_git, mode, voie):
+    racine = monde(tmp_path, texte=brief(projet=projet), extra=_config_kb(mode))
+    assert aller(racine, ID, argv=["--prompt", "--voie", voie]) == 0
+    texte = lire_prompt(racine)
+    _verifier_pied(texte, avec_git, mode)
+    assert "À faire à la main à la fin" in texte and f"--terminer --compte-rendu <fichier> --voie {voie}" in texte
+
+
+def test_voie_cli_ne_parle_pas_de_finalisation_a_la_main(tmp_path):
+    plan = preparer(monde(tmp_path))
+    assert "À faire à la main" not in plan.prompt and "--terminer" not in plan.prompt
+
+
+def test_mode_kanban_inconnu_retombe_sur_github(tmp_path):
+    plan = preparer(monde(tmp_path, extra={"kanban": {"mode": "bizarre"}}))
+    assert plan.kanban_mode == "github"
+
+
+# ---------- 0.3.2 : finalisation à la main (--terminer) ----------
+def _cr(tmp_path, texte="## Fait\nrien\n"):
+    f = tmp_path / "cr.md"
+    f.write_text(texte, encoding="utf-8")
+    return str(f)
+
+
+@pytest.mark.parametrize("voie", ["prompt", "sous_session"])
+def test_terminer_enregistre_le_compte_rendu_et_ecrit_terminee_avec_la_voie(tmp_path, voie):
+    racine = monde(tmp_path)
+    faux = FauxExecuteur()
+    code = aller(racine, ID, argv=["--terminer", "--compte-rendu", _cr(tmp_path), "--voie", voie], executer=faux)
+    assert code == 0 and faux.appels == []
+    e = journal(racine)[-1]
+    assert e["evenement"] == "terminee" and e["voie"] == voie and e["mission"] == ID
+    assert "moteur" not in e and "moteur_vise" in e and "aucun moteur lancé" in e["note"]
+    cr = (racine / "briefs" / f"{ID}-compte-rendu.md").read_text(encoding="utf-8")
+    assert "## Fait" in cr and f"voie {voie}" in cr
+    assert lm.mission_en_cours(journal(racine), ID, MAINT) is None
+
+
+def test_terminer_archive_un_compte_rendu_precedent(tmp_path):
+    racine = monde(tmp_path)
+    (racine / "briefs" / f"{ID}-compte-rendu.md").write_text("ancien", encoding="utf-8")
+    assert aller(racine, ID, argv=["--terminer", "--compte-rendu", _cr(tmp_path)]) == 0
+    assert len(list((racine / "briefs").glob(f"{ID}-compte-rendu.2*.md"))) == 1
+
+
+@pytest.mark.parametrize(
+    "fichier,argv",
+    [("absent", []), ("vide", []), ("ok", ["--prompt"]), ("ok", ["--parallele"])],
+)
+def test_terminer_refus(tmp_path, capsys, fichier, argv):
+    racine = monde(tmp_path)
+    contenus = {"vide": "  \n", "ok": "## Fait\n"}
+    chemin = str(tmp_path / "nulle-part.md") if fichier == "absent" else _cr(tmp_path, contenus[fichier])
+    assert aller(racine, ID, argv=["--terminer", "--compte-rendu", chemin, *argv]) == 2
+    assert "REFUS" in capsys.readouterr().err and journal(racine) == []
+
+
+def test_terminer_sans_fichier_ou_avec_plusieurs_missions_refuse(tmp_path):
+    racine = monde(tmp_path)
+    assert aller(racine, ID, argv=["--terminer"]) == 2
+    assert aller(racine, ID, ID2, argv=["--terminer", "--compte-rendu", _cr(tmp_path)]) == 2
+    assert aller(racine, ID, argv=["--compte-rendu", _cr(tmp_path)]) == 2
+
+
+def test_terminer_dry_run_n_ecrit_rien(tmp_path, capsys):
+    racine = monde(tmp_path)
+    assert aller(racine, ID, argv=["--terminer", "--compte-rendu", _cr(tmp_path), "--dry-run"]) == 0
+    assert journal(racine) == [] and not (racine / "briefs" / f"{ID}-compte-rendu.md").exists()
+    assert "rien n'est écrit" in capsys.readouterr().out
+
+
+# ---------- 0.3.2 : source du moteur visé ----------
+SOURCES = {
+    "option": (["--moteur", "claude"], {"moteur_par_defaut": "copilot"}, "claude", "option --moteur"),
+    "config": ([], {"moteur_par_defaut": "copilot"}, "copilot", "config.json"),
+    "defaut": ([], {}, "claude", "moteur non configuré"),
+}
+
+
+@pytest.mark.parametrize("cle", list(SOURCES))
+def test_la_source_du_moteur_est_dite_au_prompt_au_dry_run_et_au_journal(tmp_path, capsys, cle):
+    argv, extra, moteur, source = SOURCES[cle]
+    racine = monde(tmp_path, extra=extra)
+    assert aller(racine, ID, argv=["--prompt", "--dry-run", *argv]) == 0
+    sortie_ = capsys.readouterr().out
+    assert f"moteur visé {moteur}" in sortie_ and source in sortie_
+    assert aller(racine, ID, argv=["--prompt", *argv]) == 0
+    e = journal(racine)[-1]
+    assert e["moteur_vise"] == moteur and source in e["note"]
+    assert f"- Moteur visé : {moteur} (source : " in lire_prompt(racine) and source in lire_prompt(racine)
+
+
+@pytest.mark.parametrize("cle", list(SOURCES))
+def test_dry_run_du_lanceur_dit_la_source_du_moteur(tmp_path, capsys, cle):
+    argv, extra, moteur, source = SOURCES[cle]
+    racine = monde(tmp_path, extra=extra)
+    aide = AIDE_RECENTE if moteur == "copilot" else None
+    assert aller(racine, ID, argv=["--dry-run", *argv], aide=aide) == 0
+    sortie_ = capsys.readouterr().out
+    assert f"moteur   : {moteur} (source : " in sortie_ and source in sortie_
+
+
+def test_choisir_moteur_trois_sources():
+    choisir = lm.commun.choisir_moteur
+    assert choisir("copilot", {"moteur_par_defaut": "claude"}) == ("copilot", lm.commun.SOURCE_MOTEUR_OPTION)
+    assert choisir(None, {"moteur_par_defaut": "copilot"}) == ("copilot", lm.commun.SOURCE_MOTEUR_CONFIG)
+    assert choisir(None, {"moteur_par_defaut": " "}) == ("claude", lm.commun.SOURCE_MOTEUR_DEFAUT)
+    assert choisir(None, {}) == ("claude", lm.commun.SOURCE_MOTEUR_DEFAUT)

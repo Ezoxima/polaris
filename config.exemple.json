@@ -1,6 +1,6 @@
 {
   "_commentaire": "EXEMPLE : les projets « boutique-web » et « pipeline-ventes » sont fictifs. Copie ce fichier en config.json, supprime-les et déclare les tiens (docs/installation.md, étape 3). Clés `_…` ignorées.",
-  "moteur_par_defaut": "claude",
+  "_moteur_par_defaut": "Clé volontairement absente : le moteur se choisit avec /configurer (`moteur_par_defaut` : claude ou copilot). Sans choix, le lanceur le dit et prend claude par défaut.",
   "racine_projets": "~/projets",
   "voie_preferee": "cli",
   "defauts": {
@@ -10,11 +10,7 @@
     "duree_max_plafond_min": 120
   },
   "copilot": {
-    "modeles": {
-      "haiku": "",
-      "sonnet": "",
-      "opus": ""
-    },
+    "_modeles": "Clé `modeles` volontairement absente : /configurer modeles y écrit un nom par classe (haiku, sonnet, opus), ou `auto`. Jamais de valeur vide.",
     "credits_ia_max": null,
     "autoriser_tous_outils": false
   },

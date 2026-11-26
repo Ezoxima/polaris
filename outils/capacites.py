@@ -425,9 +425,10 @@ def main(
         print("  (ajoute --ecrire pour enregistrer ; les capacités déclarées à la main ne sont jamais écrasées)")
 
     if a.voie:
-        moteur = a.moteur or config.get("moteur_par_defaut") or "claude"
+        moteur, source = commun.choisir_moteur(a.moteur, config)
         choix = proposer_voie(effectives, config.get("voie_preferee"), moteur)
-        print(f"\nVoie proposée : {choix.voie} — {LIBELLES_VOIES[choix.voie]}")
+        print(f"\nMoteur visé : {moteur} (source : {source})")
+        print(f"Voie proposée : {choix.voie} — {LIBELLES_VOIES[choix.voie]}")
         print(f"  pourquoi : {choix.raison}" + (" (REPLI : à faire accepter)" if choix.repli else ""))
         print(
             "  À accepter par l'utilisateur ; après un refus de permission ou un échec : s'arrêter, ne pas changer de voie."

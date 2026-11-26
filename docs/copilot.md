@@ -50,7 +50,7 @@ et note le résultat ici.
 
 **Mode 2 sans CLI.** Le lanceur appelle une CLI. Sans elle, `python outils/lancer_mission.py --prompt <id>` écrit un
 prompt autonome (`briefs/<id>-prompt.md`) que tu colles dans une nouvelle session ; l'application sait aussi créer une
-sous-session avec ce prompt (**observé** : le prompt a été reçu par une vraie sous-session ; une mission complète en sous-session n'est **pas testée**), mais **elle ne garantit aucun des contrôles du
+sous-session avec ce prompt (**observé** : le prompt a été reçu par une vraie sous-session ; une mission complète en sous-session sur un projet fictif est **observée** : réussie, compte rendu et ligne `terminee` saisis à la main, sans aucun contrôle du lanceur), mais **elle ne garantit aucun des contrôles du
 lanceur** : voir [architecture.md, « Mode 2 par paliers »](architecture.md#mode-2-par-paliers) et
 [installation-restreinte.md](installation-restreinte.md#4-sans-cli-dagent-lapplication-seulement).
 
@@ -174,8 +174,8 @@ Le lanceur ne prétend rien garantir sur :
 - la lecture du prompt sur l'entrée standard : non documentée, d'où un prompt passé en argument. Windows limite la ligne
   de commande à environ 32 000 caractères : le lanceur **refuse** un brief plus long ;
 - la stabilité du format du fichier d'usage d'une version à l'autre (voir « Fichier d'usage ») ;
-- le menu `/` dans l'application, et la création initiale de `config.json` par `/configurer` ;
-- une mission complète en sous-session avec un brief cohérent ;
+- le menu `/` dans l'application (**non testé**) ; la priorité de `--deny-tool` sur `--allow-all-tools` (**non testé**) ;
+- une mission complète en sous-session sur un vrai projet (seul un projet fictif a été **observé**, sans les contrôles du lanceur) ;
 - l'identifiant de session et les refus de permission : Copilot n'en fournit pas dans la sortie lue par le lanceur ; le
   journal et le compte rendu écrivent donc « refus de permission non relevés », jamais `0` ;
 - la durée max : elle est appliquée par le lanceur lui-même (arrêt de l'arbre de processus), pas par Copilot.

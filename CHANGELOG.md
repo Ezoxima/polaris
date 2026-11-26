@@ -3,6 +3,34 @@
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versions selon
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.3.2] - 2026-11-26
+
+Trois défauts trouvés en recette de la 0.3.1.
+
+### Corrigé
+
+- Pied commun et prompt autonome : ils ne demandent plus que ce que le projet peut fournir. Sans dépôt git suivi : plus
+  de règle de commit ni de « hash du commit », preuves = tests et fichiers modifiés. Section « Carte » seulement avec
+  `kanban.mode` à `github` ; `manuel` : « Kanban (à reporter à la main) » ; `aucun` : aucune section. Le pied est
+  construit par une fonction (`construire_pied`).
+- Moteur visé : plus de valeur d'exemple prise pour un choix. `config.exemple.json` n'a plus `moteur_par_defaut` ;
+  `/configurer` pose la question. Le dry-run, le prompt et la note `preparee` disent la source (`--moteur`, config,
+  « moteur non configuré, `claude` par défaut »).
+- `config.exemple.json` ne contient plus de modèle vide (`copilot.modeles` retiré). Copilot sur une classe absente :
+  refus renvoyant à `/configurer modeles` ; une valeur vide reste refusée. `/configurer` dit ce qu'il retire de la copie
+  de l'exemple et ce qu'il écrit à la place.
+
+### Ajouté
+
+- `lancer_mission.py <id> --terminer --compte-rendu <fichier> [--voie …]` : finalise à la main une mission des voies
+  sans lanceur (compte rendu enregistré, ligne `terminee` avec la voie), sans rien lancer. Le prompt la donne à la fin.
+- `/configurer moteur` : choix du moteur par défaut, avec recommandation tirée de l'inventaire.
+
+### Documentation
+
+- Mission complète en sous-session sur un projet fictif : **observée** (sans contrôles du lanceur) ; menu `/` et priorité
+  `--deny-tool` / `--allow-all-tools` : toujours **non testés**.
+
 ## [0.3.1] - 2026-11-26
 
 Corrections issues d'une recette de la 0.3.0 avec GitHub Copilot, et harmonisation des commandes et de la documentation

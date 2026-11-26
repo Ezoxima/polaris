@@ -46,8 +46,10 @@ python outils/lancer_mission.py m-AAAAMMJJ-NN-xxxx [autres ids] [--moteur claude
 
 Gabarit : `modeles/compte-rendu.md`.
 
-- Ce qui a été fait, avec les preuves (tests, commit local).
-- La carte mise à jour (colonne et « prochaine étape »).
+- Ce qui a été fait, avec les preuves : tests et, **avec un dépôt git suivi**, le commit local et `git status` ;
+  sans dépôt, la liste des fichiers modifiés.
+- La carte mise à jour (colonne et « prochaine étape ») : section « Carte » avec `kanban.mode` à `github` ;
+  « Kanban (à reporter à la main) » en `manuel` (rien ne la lit) ; aucune section en `aucun`.
 - Le journal de session ajouté au fichier d'axe (section « État au JJ/MM », 5 à 10 lignes).
 - Ce qui reste à décider par l'utilisateur.
 - La permission manquante, s'il y en a eu une : laquelle et pourquoi.
@@ -55,6 +57,10 @@ Gabarit : `modeles/compte-rendu.md`.
 
 Le lanceur écrit le compte rendu dans `briefs/<id>-compte-rendu.md`, précédé d'un en-tête (statut, durée, coût,
 refus de permission, commits créés, état de l'arbre git). Un compte rendu existant est archivé, jamais écrasé.
+
+Voies sans lanceur (`prompt`, `sous_session`) : l'utilisateur enregistre lui-même le compte rendu et la fin de mission avec
+`python outils/lancer_mission.py <id> --terminer --compte-rendu <fichier> --voie prompt|sous_session` (aucun moteur
+lancé, aucun contrôle du lanceur ; la ligne `terminee` porte la voie et `moteur_vise`).
 
 ## Journal : `donnees/missions.jsonl`
 
@@ -68,7 +74,7 @@ Une ligne JSON par événement.
 | `projet`, `carte`, `variante` | repères (`variante` peut être `null`) |
 | `modele`, `effort`, `mode` | le couple choisi et le mode 1, 2 ou 3 |
 | `moteur` | `claude` ou `copilot` : le moteur **lancé** (lignes `lancee`, `terminee`, `echouee`, `arretee`) |
-| `moteur_vise` | ligne `preparee` seulement : le moteur **visé** (`--moteur`, sinon `moteur_par_defaut`), qui règle la liste d'outils du prompt ; aucun moteur n'est lancé dans cette voie, d'où un champ distinct de `moteur` |
+| `moteur_vise` | lignes `preparee` et `terminee` des voies sans lanceur : le moteur **visé** (`--moteur`, sinon `moteur_par_defaut`, sinon `claude` par défaut ; la source est dite dans `note`), qui règle la liste d'outils du prompt ; aucun moteur n'est lancé dans cette voie, d'où un champ distinct de `moteur` |
 | `voie` | `cli` (lanceur), `prompt` ou `sous_session` (voies sans lanceur, événement `preparee`) |
 | `modele_reel` | Copilot seulement : `currentModel` du fichier d'usage, ou « non relevé » (jamais déduit) ; `modele` reste la classe demandée |
 | `session_id` | identifiant de la session, si la plateforme le donne |

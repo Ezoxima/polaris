@@ -151,7 +151,7 @@ def test_version_du_changelog_et_de_pyproject_concordent():
     pyproject = (RACINE / "pyproject.toml").read_text(encoding="utf-8")
     version = re.search(r'^version = "([^"]+)"', pyproject, re.M)[1]
     premiere = re.search(r"^## \[(\d+\.\d+\.\d+)\]", (RACINE / "CHANGELOG.md").read_text(encoding="utf-8"), re.M)[1]
-    assert version == premiere == "0.3.1"
+    assert version == premiere == "0.3.2"
 
 
 def test_plus_de_plafond_en_cours_dans_l_exemple_ni_les_registres():
@@ -420,3 +420,15 @@ def test_la_doc_copilot_a_une_seule_legende_et_les_reclassements_de_la_recette()
 def test_le_journal_distingue_moteur_lance_et_moteur_vise():
     mission = (RACINE / "registre" / "mission.md").read_text(encoding="utf-8")
     assert "`moteur_vise`" in mission and "**lancé**" in mission and "**visé**" in mission
+
+
+def test_configurer_pose_la_question_du_moteur_et_ne_part_plus_d_une_valeur_vide():
+    texte = " ".join((RACINE / "commandes" / "configurer.md").read_text(encoding="utf-8").split())
+    for attendu in (
+        "`moteur_par_defaut`",
+        "C'est mon choix, pas une valeur d'exemple",
+        "Un seul diff et un seul accord par section",
+        "ce que tu retires de la copie",
+        "jamais d'une valeur vide",
+    ):
+        assert attendu in texte, attendu

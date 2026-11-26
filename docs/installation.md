@@ -58,10 +58,11 @@ Copy-Item config.exemple.json config.json
   `git_root` (le dépôt git, sinon `null`), `add_dirs` (dossiers supplémentaires lisibles) et `autorise` (les outils
   que Claude peut utiliser en plus du socle, par exemple `Bash(python -m pytest*)`) ; `autorise_copilot` joue le même
   rôle pour Copilot ;
-- `moteur_par_defaut` : `claude` ou `copilot` ;
+- `moteur_par_defaut` : `claude` ou `copilot`. La clé est **absente** de l'exemple : `/configurer` te pose la question
+  et l'écrit. Sans elle, le lanceur dit « moteur non configuré, `claude` par défaut » (dry-run et journal) ;
 - `defauts` : budget et durée maximale des missions ;
-- `copilot.modeles` : les noms de modèles que ta version de Copilot accepte, ou `auto` si l'aide de ton CLI le
-  documente (voir [copilot.md](copilot.md)) ;
+- `copilot.modeles` : absente de l'exemple, `/configurer modeles` l'écrit (un nom par classe que ta version de Copilot
+  accepte, ou `auto` si l'aide de ton CLI le documente ; voir [copilot.md](copilot.md)). Jamais de valeur vide ;
 - `voie_preferee` : `cli`, `sous_session` ou `prompt` (voir [architecture.md](architecture.md#mode-2-par-paliers)) ;
 - `capacites` : écrite par `python outils/capacites.py --ecrire` ; une capacité déclarée à la main n'est jamais écrasée.
 
@@ -73,10 +74,11 @@ Ne mets **jamais** de secret dans ce fichier : il ne contient que des chemins et
 renvoie à une clé de `config.json` ; le lanceur refuse en nommant la clé si elle manque.
 
 1. **Copie** le modèle : `Copy-Item config.exemple.json config.json` (si ce n'est pas déjà fait).
-2. **Moteur** : mets `"moteur_par_defaut": "copilot"` (ou passe `--moteur copilot` à chaque lancement).
-3. **Modèles** : renseigne `copilot.modeles` (`haiku`, `sonnet`, `opus`) avec les noms **exacts** que ta version
-   accepte. Pour les trouver : la commande `/model` dans Copilot, ou l'aide du CLI (`copilot --help`). N'invente pas un
-   nom : une valeur vide refuse la mission, une valeur fausse fera échouer Copilot.
+2. **Moteur** : `/configurer` écrit `"moteur_par_defaut": "copilot"` après ton accord (ou passe `--moteur copilot` à chaque lancement).
+3. **Modèles** : `/configurer modeles` écrit `copilot.modeles` (`haiku`, `sonnet`, `opus`) avec les noms **exacts** que
+   ta version accepte (ou `auto`). Pour les trouver : la commande `/model` dans Copilot, ou l'aide du CLI
+   (`copilot --help`). N'invente pas un nom : une classe absente ou vide refuse la mission, une valeur fausse fera
+   échouer Copilot.
 4. **Projets** : supprime les projets fictifs `boutique-web` et `pipeline-ventes` de la clé `projets`, et déclare le
    tien : `cwd` (dossier de travail, relatif à `racine_projets`), `git_root` (le dépôt, sinon `null`) et
    `autorise_copilot` (les outils de plus que le socle, par exemple `shell(python -m pytest)`). Le champ `autorise`
@@ -201,7 +203,7 @@ modifie jamais `.claude/` ni `.github/skills/` à la main : l'intégration conti
 |---|---|---|
 | `config.json introuvable` | étape 3 non faite | `Copy-Item config.exemple.json config.json` |
 | `projet « x » absent de config.json` | le brief nomme un projet inconnu | l'ajouter à `projets` (étape 3) ou corriger la ligne `Carte : …` |
-| `copilot : aucun nom de modèle pour « sonnet »` | `copilot.modeles` vide pour ce modèle | étape 3 bis, point 3 |
+| `copilot : aucun modèle configuré pour la classe « sonnet »` (ou nom vide) | `copilot.modeles` absent ou vide pour cette classe | `/configurer modeles`, ou étape 3 bis, point 3 |
 | `copilot réclame --allow-all-tools` | ta version l'exige en mode non interactif | lire [garde-fous.md](garde-fous.md#--allow-all-tools-avec-copilot) avant de rien changer |
 | `commande « claude » introuvable` | moteur absent du `PATH` | l'installer, ou `--moteur copilot` |
 | `Kanban non configuré` | Orion pas créé | étape 4 |

@@ -145,7 +145,17 @@ dans le récapitulatif ; elle n'est jamais choisie en silence.
 `--prompt` écrit `briefs/<id>-prompt.md` (projet, contexte, périmètre, garde-fous, critère de fin, compte rendu
 attendu, recommandation de modèle et d'effort, liste des contrôles non garantis) et note `preparee` au journal ; il ne
 lance rien. Le moteur (`--moteur`, sinon `moteur_par_defaut`) ne sert qu'à choisir la liste d'outils du projet : il est noté
-`moteur_vise` au journal, car aucun moteur n'est lancé. `--dry-run` n'écrit rien et n'exige aucun CLI.
+`moteur_vise` au journal, car aucun moteur n'est lancé ; le dry-run, le prompt et la note `preparee` disent la **source**
+du moteur (`--moteur`, `moteur_par_defaut`, ou « moteur non configuré, `claude` par défaut »). `--dry-run` n'écrit rien
+et n'exige aucun CLI.
+
+**Finaliser à la main.** Ces voies n'ont pas de lanceur pour recueillir le compte rendu. Le prompt le dit à la fin
+(« À faire à la main ») : l'utilisateur sauvegarde le dernier message de la session dans un fichier, puis lance
+`python outils/lancer_mission.py <id> --terminer --compte-rendu <fichier> --voie prompt|sous_session`. Cette commande
+ne lance aucun moteur : elle copie le texte dans `briefs/<id>-compte-rendu.md` (un précédent est archivé) et écrit la
+ligne `terminee` (avec la voie) au journal. Le pied du prompt dépend du projet : sans dépôt git, pas de règle de
+commit (preuves = tests et fichiers modifiés) ; la section « Carte » n'existe qu'avec `kanban.mode` à `github`
+(`manuel` : section à reporter à la main, `aucun` : aucune section).
 
 Contrôles garantis, par voie (ce tableau est produit par `outils/capacites.py` ; un test le garde à l'identique) :
 

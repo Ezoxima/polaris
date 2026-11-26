@@ -74,6 +74,13 @@ from typing import NamedTuple
 
 import commun
 import kanban
+from aide_copilot import (  # noqa: F401 — réexportés : tests et appelants les lisent ici
+    EFFORTS_COPILOT,
+    EFFORTS_COPILOT_CONNUS,
+    OPTIONS_COPILOT_SUIVIES,
+    AideCopilot,
+    analyser_aide_copilot,
+)
 
 RACINE = commun.RACINE
 
@@ -136,12 +143,10 @@ SOCLE_AUTORISE_COPILOT = [
 ]
 INTERDITS_COPILOT = [f"shell({cmd})" for cmd in COMMANDES_GIT_INTERDITES]
 
-# Options de `copilot --help` que le lanceur sait utiliser (observées sur une version récente, jamais essayées en réel).
-OPTIONS_COPILOT_SUIVIES = ("--reasoning-effort", "--max-ai-credits", "--usage-output-file", "--allow-all-tools")
-EFFORTS_COPILOT = ("low", "medium", "high")  # valeurs transmises quand l'aide ne liste pas de valeurs
-EFFORTS_COPILOT_CONNUS = ("minimal", "low", "medium", "high", "xhigh", "max")
 MOTIF_ALLOW_ALL = re.compile(r"allow[- ]all[- ]tools", re.I)
 LIMITE_RESUME_USAGE = 400
+MODELE_AUTO = "auto"
+MODELE_NON_RELEVE = "non relevé"
 MESSAGE_ALLOW_ALL = (
     "copilot réclame --allow-all-tools en mode non interactif. Le lanceur ne l'ajoute PAS de lui-même : l'autorisation "
     "deviendrait « tout sauf la liste d'interdits » (docs/garde-fous.md). La mission n'est pas relancée. Si tu "
@@ -411,8 +416,9 @@ def construire_commande_claude(p: Plan) -> list:
 def construire_commande_copilot(p: Plan, modeles: dict, extras: tuple | list = ()) -> list:
     """Commande `copilot -p` d'après la documentation GitHub (non testée en réel, voir docs/copilot.md).
 
-    `extras` : options détectées dans l'aide (effort, crédits, fichier d'usage) et, sur choix de la config,
-    `--allow-all-tools`. Les `--deny-tool` sont toujours passés, avec ou sans `--allow-all-tools`."""
+    `extras` : options détectées dans l'aide (effort, crédits, fichier d'usage, `--no-auto-update`) et, sur choix de
+    la config, `--allow-all-tools`. Les `--deny-tool` sont toujours passés, avec ou sans `--allow-all-tools`.
+    Le modèle `auto` (choix automatique) est passé tel quel : `preparer_copilot` a déjà vérifié que l'aide le documente."""
     cmd = ["copilot", "-p", p.prompt, "-s", "--no-ask-user", *extras]
     modele = modeles.get(p.modele)
     if isinstance(modele, str) and modele.strip():
@@ -424,41 +430,6 @@ def construire_commande_copilot(p: Plan, modeles: dict, extras: tuple | list = (
     for outil in INTERDITS_COPILOT:
         cmd.append(f"--deny-tool={outil}")
     return cmd
-
-
-class AideCopilot(NamedTuple):
-    """Ce que `copilot --help` annonce. `lue` faux = aide absente : aucune option facultative n'est transmise."""
-
-    lue: bool = False
-    options: frozenset = frozenset()
-    efforts: tuple = ()  # valeurs listées pour --reasoning-effort ; () si l'aide n'en liste pas
-
-
-def analyser_aide_copilot(texte: str | None) -> AideCopilot:
-    """Fonction pure : options suivies présentes dans le texte de `copilot --help`, et valeurs d'effort listées.
-
-    Une option compte si elle apparaît telle quelle (pas comme préfixe d'une autre). Les valeurs d'effort sont lues
-    dans le texte de l'option (liste entre crochets, parenthèses, ou après « choices ») ; seules celles que le
-    lanceur connaît sont gardées."""
-    if not texte or not texte.strip():
-        return AideCopilot()
-    options = frozenset(o for o in OPTIONS_COPILOT_SUIVIES if re.search(_option(o), texte))
-    efforts: tuple = ()
-    m = re.search(_option("--reasoning-effort") + r"(?P<reste>.*?)(?=\n\s*-{1,2}[A-Za-z]|\Z)", texte, re.S)
-    if m:
-        candidats = re.findall(r"(?:choices?|values?|one of)\b\s*:?\s*([^\n]+)", m["reste"], re.I)
-        candidats += re.findall(r"[\[(<{]([^\])>}\n]+)[\])>}]", m["reste"])
-        for texte_liste in candidats:  # le premier groupe qui cite au moins deux efforts connus est la liste
-            mots = re.findall(r"[a-z]+", texte_liste.lower())
-            trouves = tuple(dict.fromkeys(x for x in mots if x in EFFORTS_COPILOT_CONNUS))
-            if len(trouves) >= 2:
-                efforts = trouves
-                break
-    return AideCopilot(True, options, efforts)
-
-
-def _option(nom: str) -> str:
-    return r"(?<![\w-])" + re.escape(nom) + r"(?![\w-])"
 
 
 def lire_aide_copilot() -> str:
@@ -523,6 +494,26 @@ def preparer_copilot(plan: Plan, config: dict, racine: Path, aide: AideCopilot) 
     extras: list[str] = []
     notes = plan.notes
     origine = "absent de l'aide" if aide.lue else "aide du CLI non lue"
+
+    # modèle : « auto » n'est transmis que si l'aide de --model le documente ; une valeur vide reste refusée plus haut
+    modele = str(modeles.get(plan.modele)).strip()
+    if modele.lower() == MODELE_AUTO:
+        if not aide.modele_auto:
+            origine_auto = "valeur absente de l'aide" if aide.lue else "aide du CLI non lue"
+            raise Refus(
+                f"copilot : `copilot.modeles.{plan.modele}` vaut « {MODELE_AUTO} » mais l'aide du CLI ne documente pas "
+                f"cette valeur pour --model ({origine_auto}). "
+                "Mets un nom de modèle explicite (commande /model dans Copilot) ou mets à jour le CLI."
+            )
+        modeles = {**modeles, plan.modele: MODELE_AUTO}
+        notes.append(
+            "copilot : modèle « auto » (choix de Copilot) : le modèle réellement utilisé n'est connu que par le fichier "
+            "d'usage (`currentModel`), sinon le journal écrit « non relevé »."
+        )
+
+    # versions multiples : sans --no-auto-update, une mise à jour peut changer de version entre deux lancements
+    if "--no-auto-update" in aide.options:
+        extras.append("--no-auto-update")
 
     # effort
     if "--reasoning-effort" in aide.options:

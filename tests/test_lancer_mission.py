@@ -372,7 +372,8 @@ def test_analyser_aide_ancienne_version():
 
 def test_analyser_aide_recente_version():
     a = lm.analyser_aide_copilot(AIDE_RECENTE)
-    assert a.options == frozenset(lm.OPTIONS_COPILOT_SUIVIES)
+    assert a.options == frozenset(lm.OPTIONS_COPILOT_SUIVIES) - {"--no-auto-update"}
+    assert not a.modele_auto
     assert a.efforts == ("low", "medium", "high")
     assert lm.analyser_aide_copilot(AIDE_SANS_LISTE).efforts == ()
 
@@ -385,6 +386,58 @@ def test_analyser_aide_absente(texte):
 def test_analyser_aide_ne_confond_pas_les_prefixes():
     a = lm.analyser_aide_copilot("  --max-ai-credits-extra <n>\n  --usage-output-files x\n")
     assert a.options == frozenset()
+
+
+# Aide FICTIVE d'une version qui documente `auto` pour --model et propose --no-auto-update.
+AIDE_AUTO = (
+    AIDE_RECENTE
+    + """  --model <model>             modèle à utiliser (use 'auto' to let Copilot pick automatically)
+  --no-auto-update            ne met pas le CLI à jour
+"""
+)
+
+
+def test_analyser_aide_detecte_auto_seulement_dans_le_texte_de_model():
+    assert lm.analyser_aide_copilot(AIDE_AUTO).modele_auto
+    assert not lm.analyser_aide_copilot(AIDE_ANCIENNE).modele_auto
+    # « auto » ailleurs (--no-auto-update, autre option) ne prouve rien
+    autre = (
+        "  --model <m>   modèle"
+        + chr(10)
+        + "  --no-auto-update   pas de mise à jour"
+        + chr(10)
+        + "  --x   mode auto"
+        + chr(10)
+    )
+    assert not lm.analyser_aide_copilot(autre).modele_auto
+    assert not lm.analyser_aide_copilot("  --model-x <m>   use 'auto'" + chr(10)).modele_auto
+    assert "--no-auto-update" in lm.analyser_aide_copilot(AIDE_AUTO).options
+
+
+def test_copilot_modele_auto_transmis_si_l_aide_le_documente(tmp_path):
+    extra = {"copilot": {"modeles": {"sonnet": "auto"}}}
+    p = preparer(monde(tmp_path, extra=extra), moteur="copilot", aide=AIDE_AUTO)
+    assert "--model=auto" in p.commande
+    assert any("« auto »" in n and "currentModel" in n for n in p.notes)
+
+
+@pytest.mark.parametrize("aide", [AIDE_RECENTE, AIDE_ANCIENNE, ""])
+def test_copilot_modele_auto_refuse_si_l_aide_ne_le_documente_pas(tmp_path, aide):
+    extra = {"copilot": {"modeles": {"sonnet": " Auto "}}}
+    with pytest.raises(lm.Refus, match=r"« auto ».*ne documente pas"):
+        preparer(monde(tmp_path, extra=extra), moteur="copilot", aide=aide)
+
+
+def test_copilot_modele_vide_reste_refuse_meme_si_auto_est_documente(tmp_path):
+    extra = {"copilot": {"modeles": {"sonnet": ""}}}
+    with pytest.raises(lm.Refus, match=r"copilot\.modeles\.sonnet"):
+        preparer(monde(tmp_path, extra=extra), moteur="copilot", aide=AIDE_AUTO)
+
+
+def test_copilot_no_auto_update_transmis_seulement_si_l_aide_le_liste(tmp_path):
+    assert "--no-auto-update" in preparer(monde(tmp_path), moteur="copilot", aide=AIDE_AUTO).commande
+    assert "--no-auto-update" not in preparer(monde(tmp_path / "2"), moteur="copilot", aide=AIDE_RECENTE).commande
+    assert "--no-auto-update" not in preparer(monde(tmp_path / "3"), moteur="copilot", aide="").commande
 
 
 def test_copilot_recent_transmet_effort_et_fichier_d_usage_sans_credits_par_defaut(tmp_path):

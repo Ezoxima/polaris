@@ -1,6 +1,6 @@
 ---
 description: "Lance un ou plusieurs briefs déjà écrits (m-AAAAMMJJ-NN-xxxx) via outils/lancer_mission.py"
-argument-hint: "<m-AAAAMMJJ-NN-xxxx> [autres identifiants] [--parallele] [--moteur claude|copilot]"
+argument-hint: "<m-AAAAMMJJ-NN-xxxx> [autres identifiants] [--parallele] [--moteur claude|copilot] [--voie cli|sous_session|prompt]"
 ---
 <!-- Fichier généré par outils/generer_commandes.py à partir de commandes/go.md : ne pas modifier à la main. -->
 
@@ -19,12 +19,24 @@ déjà écrits (`/lancer` rédige le brief d'une carte, `/go` lance un brief qui
   même projet**, fichier `donnees/STOP`). Le lanceur ne lit pas Orion et ne compte pas les cartes « En cours » : seule
   reste la règle « une mission à la fois par projet ».
 
-## 2. Récapitulatif et accord
-Affiche, par mission : projet, carte, variante, modèle, effort, durée max, budget, **consommation estimée**
-(`registre/grille.md` ou sa version `.local.md`, voir AGENTS.md). Relève la consommation actuelle (outil de la plateforme, sinon demande-la-moi) : ce sont les
+## 2. Voie de lancement
+Lance `python outils/capacites.py --voie` (local, n'écrit rien) : il propose une voie d'après les capacités du poste
+et ma préférence (`voie_preferee`). **Propose-la, ne l'impose pas** ; je l'accepte ou j'en choisis une autre.
+- `cli` : le lanceur ci-dessous.
+- `sous_session` ou `prompt` : `python outils/lancer_mission.py --prompt <id> [--voie sous_session]` écrit
+  `briefs/<id>-prompt.md` (autonome) et note `preparee` au journal ; **il ne lance rien**. Pour `sous_session`, tu
+  ouvres la session avec ce prompt seulement après mon accord ; pour `prompt`, tu me donnes le chemin du fichier.
+- Une voie de repli n'est **jamais équivalente** au lanceur : dis lesquels des contrôles (verrou par projet, durée max,
+  journal automatique, permissions, relevé de consommation, arrêt d'urgence `donnees/STOP`) ne sont pas garantis.
+- **Après un refus de permission ou un échec : arrête-toi et explique. Ne change jamais de voie de ta propre
+  initiative**, même pour « finir le travail ».
+
+## 3. Récapitulatif et accord
+Affiche, par mission : **voie proposée et ce qu'elle ne garantit pas**, projet, carte, variante, modèle, effort, durée
+max, budget, **consommation estimée** (`registre/grille.md` ou sa version `.local.md`, voir AGENTS.md). Relève la consommation actuelle (outil de la plateforme, sinon demande-la-moi) : ce sont les
 « avant » du journal. **Attends mon accord explicite.**
 
-## 3. Lancer
+## 4. Lancer (voie `cli`)
 - `--parallele` : seulement sur ma demande, pour des projets différents (deux missions d'un même projet sont refusées) ;
   le récapitulatif donne la consommation cumulée.
 - `python outils/lancer_mission.py <id> [<id2> …] [--parallele] [--moteur …]`, en arrière-plan quand l'outil de la
@@ -33,7 +45,7 @@ Affiche, par mission : projet, carte, variante, modèle, effort, durée max, bud
   `briefs/<id>-compte-rendu.md`. Arrêt d'urgence : créer le fichier `donnees/STOP`.
 - Les cartes ne bougent pas toutes seules : mets-les à jour à la fin.
 
-## 4. À la fin : toujours vérifier, ne pas croire le compte rendu
+## 5. À la fin : toujours vérifier, ne pas croire le compte rendu
 - Relance les tests et le lint du projet, relis `git status`, `git log` et `git diff --stat` (aucune référence
   distante changée, aucun fichier hors périmètre).
 - Carte : colonne, « prochaine étape », consommation mesurée, description corrigée si elle est devenue fausse.

@@ -258,3 +258,31 @@ def test_la_doc_copilot_cite_les_options_observees_et_les_garde_fous():
         assert option in doc
     assert "Application seule" in doc and "pas des USD" in doc
     assert "autoriser_tous_outils" in (RACINE / "docs" / "garde-fous.md").read_text(encoding="utf-8")
+
+
+def test_configurer_pose_une_question_a_la_fois_et_n_ecrit_qu_apres_accord():
+    texte = (RACINE / "commandes" / "configurer.md").read_text(encoding="utf-8")
+    for attendu in (
+        "Une seule question à la fois",
+        "Rien n'est écrit sans mon accord",
+        "diff exact",
+        "python outils/capacites.py",
+        "« non testé » n'est pas « disponible »",
+        "Aucune carte n'est créée ni migrée",
+        "kanban.mode",
+        "voie_preferee",
+        "--model auto",
+        "Une valeur vide est refusée",
+    ):
+        assert attendu in texte, attendu
+    for section in ("inventaire", "projets", "kanban", "voie", "modeles"):
+        assert f"({section})".replace("(", "(`").replace(")", "`)") in texte or f"`{section}`" in texte, section
+
+
+def test_go_et_lancer_proposent_la_voie_et_ne_basculent_jamais_seuls():
+    for nom in ("go", "lancer"):
+        texte = " ".join(
+            (RACINE / "commandes" / f"{nom}.md").read_text(encoding="utf-8").replace("*", "").lower().split()
+        )
+        assert "python outils/capacites.py --voie" in texte and "--prompt" in texte, nom
+        assert "jamais équivalente" in texte and "ne change jamais de voie" in texte, nom

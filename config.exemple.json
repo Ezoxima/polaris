@@ -2,6 +2,7 @@
   "_commentaire": "EXEMPLE : les projets « boutique-web » et « pipeline-ventes » sont fictifs. Copie ce fichier en config.json, supprime-les et déclare les tiens (docs/installation.md, étape 3). Clés `_…` ignorées.",
   "moteur_par_defaut": "claude",
   "racine_projets": "~/projets",
+  "voie_preferee": "cli",
   "defauts": {
     "budget_usd_par_minute": 0.2,
     "budget_usd_min": 3,
@@ -44,6 +45,8 @@
     "titre": "Orion",
     "numero": null,
     "projet_id": "",
-    "champs": {}
-  }
+    "champs": {},
+    "mode": "github"
+  },
+  "capacites": {}
 }

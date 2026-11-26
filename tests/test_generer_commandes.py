@@ -28,7 +28,7 @@ def test_les_fichiers_generes_du_depot_sont_a_jour():
     assert gc.verifier(RACINE_DEPOT, attendus) == []
 
 
-def test_le_depot_contient_les_sept_commandes_et_la_skill():
+def test_le_depot_contient_les_huit_commandes_et_la_skill():
     noms = {c.nom: c.type for c in gc.charger_sources(RACINE_DEPOT / "commandes")}
     assert noms == {
         "point": "commande",
@@ -38,6 +38,7 @@ def test_le_depot_contient_les_sept_commandes_et_la_skill():
         "go": "commande",
         "nouveau-projet": "commande",
         "conseil": "commande",
+        "configurer": "commande",
         "creuser": "skill",
     }
 

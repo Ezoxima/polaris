@@ -36,13 +36,17 @@ Le code se confie à la classe standard (effort élevé pour un chantier, moyen 
 forte, réservée au diagnostic, à l'architecture et au cadrage (effort `high` au plus). Le léger sert aux
 traductions et aux résumés. Durée max selon la grille.
 
-## 4. Récapitulatif et accord
-Affiche : projet, carte, variante, modèle, effort, mode, durée max, permissions anticipées, **consommation estimée**
+## 4. Voie, récapitulatif et accord
+Lance `python outils/capacites.py --voie` (local, n'écrit rien) : il propose une voie d'après les capacités du poste et
+ma préférence. **Propose-la, ne l'impose pas.** Une voie autre que `cli` (`sous_session`, `prompt`) passe par
+`python outils/lancer_mission.py --prompt <id> [--voie sous_session]`, qui écrit un prompt autonome et ne lance rien ;
+dis quels contrôles elle ne garantit pas (verrou par projet, durée max, journal automatique, permissions, relevé de
+consommation, arrêt d'urgence) : elle n'est jamais équivalente au lanceur. Affiche : voie proposée, projet, carte, variante, modèle, effort, mode, durée max, permissions anticipées, **consommation estimée**
 (grille ; avertis si elle dépasse ce qui reste). Relève la consommation actuelle avec l'outil de la plateforme s'il
 en existe un, sinon demande-la-moi : ce sont les « avant ». **Attends mon accord explicite** avant de lancer ; je
 peux changer le couple choisi.
 
-## 5. Lancer (mode 2)
+## 5. Lancer (mode 2, voie acceptée)
 - D'abord `python outils/lancer_mission.py <id> --dry-run` : il affiche le plan et refuse proprement si une
   condition manque. Puis, après mon accord, `python outils/lancer_mission.py <id> --moteur <claude|copilot>`.
   Jamais d'option qui contourne les permissions.
@@ -52,7 +56,7 @@ peux changer le couple choisi.
   et `git diff --stat` (aucune référence distante changée, aucun fichier hors périmètre).
 - Mets la carte à jour : colonne, « prochaine étape », consommation mesurée, description corrigée si la mission l'a
   rendue fausse. Ajoute la ligne `mesure` au journal avec les pourcentages d'après.
-- Permission manquante : propose (a) de l'accorder pour cette mission seulement, (b) le mode 3, (c) de redécouper ;
+- Permission manquante ou échec : **arrête-toi et explique, ne change jamais de voie de ta propre initiative**. Propose (a) de l'accorder pour cette mission seulement, (b) le mode 3, (c) de redécouper ;
   je tranche.
 - Si le chantier avait une variante et qu'il est clos : propose la carte « Répliquer dans <autre variante> »
   (À cadrer), dont le brief pointe vers l'implémentation de référence.

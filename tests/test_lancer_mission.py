@@ -564,8 +564,8 @@ def ecrire_usage(tmp_path, contenu):
     return f
 
 
-def test_usage_complet_champs_connus_et_reste_brut(tmp_path):
-    f = ecrire_usage(tmp_path, USAGE_COMPLET)
+def test_usage_complet_reprend_la_liste_blanche_et_nomme_le_reste_sans_ses_valeurs(tmp_path):
+    f = ecrire_usage(tmp_path, {**USAGE_COMPLET, "totalApiDurationMs": 4200, "jeton": "SECRET-ne-pas-recopier"})
     u = lm.lire_usage(f)
     assert u.modele == "modele-x" and not f.exists()
     for attendu in (
@@ -573,32 +573,61 @@ def test_usage_complet_champs_connus_et_reste_brut(tmp_path):
         "modèle modele-x",
         "coût premium 1.5",
         "nanoAIU 123456",
+        "requêtes utilisateur 2",
+        "durée API ms 4200",
         "jetons entrée 1000, cache lu 400, cache écrit 0, sortie 250",
         "code +12 -3 2 fichier(s)",
-        "reste brut :",
-        "aiCreditsStatus",
-        "modelMetrics",
+        "3 champ(s) non reconnu(s), non repris : aiCreditsStatus, modelMetrics, jeton",
     ):
         assert attendu in u.resume, attendu
-    assert "currentModel" not in u.resume.split("reste brut :")[1]  # les champs connus ne sont pas répétés
+    for interdit in ("reste brut", "SECRET", '"ok"', "{", "filesModified"):
+        assert interdit not in u.resume, interdit  # aucune valeur, aucun JSON brut
 
 
 def test_usage_partiel_tolere_les_absences_sans_inventer_le_modele(tmp_path):
     u = lm.lire_usage(ecrire_usage(tmp_path, {"totalNanoAiu": 9}))
     assert u.modele is None
     assert "nanoAIU 9" in u.resume and "modèle non relevé" in u.resume and "coût premium" not in u.resume
+    assert "non reconnu" not in u.resume
 
 
-def test_usage_sans_aucun_champ_connu_garde_le_brut_tronque(tmp_path):
+def test_usage_sans_aucun_champ_reconnu_ne_cite_que_les_noms(tmp_path):
     u = lm.lire_usage(ecrire_usage(tmp_path, {"x": 1, "y": "z" * 600}))
-    assert "aucun champ connu relevé" in u.resume and "modèle non relevé" in u.resume
-    assert u.resume.endswith("…") and len(u.resume) < 700
+    assert "aucun champ reconnu relevé" in u.resume and "modèle non relevé" in u.resume
+    assert "2 champ(s) non reconnu(s), non repris : x, y" in u.resume
+    assert "zzz" not in u.resume and len(u.resume) < 300
 
 
-@pytest.mark.parametrize("contenu", ["pas du json {", "[1, 2]", '"texte"', "42"])
-def test_usage_invalide_ou_inattendu_est_dit_avec_le_brut(tmp_path, contenu):
+def test_usage_beaucoup_de_cles_inconnues_et_noms_longs_sont_bornes(tmp_path):
+    inconnus = {f"cle{i}": "valeur-secrete" for i in range(25)}
+    inconnus["n" * 200] = 1
+    u = lm.lire_usage(ecrire_usage(tmp_path, inconnus))
+    assert "26 champ(s) non reconnu(s)" in u.resume and "(+16 autres)" in u.resume
+    assert "valeur-secrete" not in u.resume and "n" * 100 not in u.resume and len(u.resume) < 500
+
+
+@pytest.mark.parametrize(
+    "contenu,erreur",
+    [("pas du json {", "JSONDecodeError"), ('{"a": 1,', "JSONDecodeError")],
+)
+def test_usage_json_invalide_est_illisible_avec_le_type_d_erreur_sans_le_contenu(tmp_path, contenu, erreur):
     u = lm.lire_usage(ecrire_usage(tmp_path, contenu))
-    assert u.modele is None and "JSON invalide ou inattendu" in u.resume and contenu in u.resume
+    assert u.modele is None and u.resume == f"fichier d'usage illisible ({erreur})"
+    assert "json {" not in u.resume
+
+
+@pytest.mark.parametrize("contenu,type_json", [("[1, 2]", "list"), ('"mot-secret"', "str"), ("42", "int")])
+def test_usage_json_qui_n_est_pas_un_objet_est_illisible_sans_le_contenu(tmp_path, contenu, type_json):
+    u = lm.lire_usage(ecrire_usage(tmp_path, contenu))
+    assert (
+        u.modele is None and u.resume == f"fichier d'usage illisible (JSON de type {type_json}, un objet est attendu)"
+    )
+    assert "secret" not in u.resume
+
+
+def test_usage_modele_est_borne_et_nettoye(tmp_path):
+    u = lm.lire_usage(ecrire_usage(tmp_path, {"currentModel": "m" * 300 + chr(7)}))
+    assert len(u.modele) <= lm.LIMITE_NOM_CLE + 1 and u.modele.endswith("…")
 
 
 def test_usage_champ_de_type_inattendu_signale_et_ne_donne_pas_de_modele(tmp_path):
@@ -1213,7 +1242,7 @@ def test_prompt_plusieurs_missions(tmp_path):
 
 @pytest.mark.parametrize(
     "argv",
-    [["--prompt", "--parallele"], ["--prompt", "--moteur", "copilot"], ["--voie", "sous_session"]],
+    [["--prompt", "--parallele"], ["--voie", "sous_session"]],
 )
 def test_prompt_options_incompatibles_refusees(tmp_path, argv, capsys):
     racine = monde(tmp_path)
@@ -1256,3 +1285,210 @@ def test_aucune_bascule_de_voie_apres_un_echec_du_moteur(tmp_path):
     assert aller(racine, ID, executer=faux, argv=["--moteur", "copilot"], aide=AIDE_RECENTE) == 1
     assert len(faux.appels) == 1 and not (racine / "briefs" / f"{ID}-prompt.md").exists()
     assert all(e["evenement"] != "preparee" for e in journal(racine))
+
+
+# ---------- 0.3.1 : moteur visé du prompt préparé ----------
+def test_prompt_prend_le_moteur_par_defaut_de_la_config(tmp_path):
+    racine = monde(tmp_path, extra={"moteur_par_defaut": "copilot"})
+    assert aller(racine, ID, argv=["--prompt"]) == 0
+    e = journal(racine)[-1]
+    assert e["moteur_vise"] == "copilot" and "moteur" not in e  # aucun moteur lancé : champ « visé », pas « moteur »
+    assert "moteur visé : copilot" in e["note"] and "rien n'est lancé" in e["note"]
+
+
+def test_prompt_option_moteur_l_emporte_sur_la_config(tmp_path):
+    racine = monde(tmp_path, extra={"moteur_par_defaut": "copilot"})
+    assert aller(racine, ID, argv=["--prompt", "--moteur", "claude"]) == 0
+    assert journal(racine)[-1]["moteur_vise"] == "claude"
+    racine2 = monde(tmp_path / "2")
+    assert aller(racine2, ID, argv=["--prompt", "--moteur", "copilot"]) == 0
+    assert journal(racine2)[-1]["moteur_vise"] == "copilot"
+
+
+def test_prompt_moteur_par_defaut_est_claude_sans_config(tmp_path):
+    racine = monde(tmp_path)
+    assert aller(racine, ID, argv=["--prompt"]) == 0
+    assert journal(racine)[-1]["moteur_vise"] == "claude"
+
+
+def test_prompt_copilot_ne_demande_ni_modele_ni_aide_et_prend_les_outils_copilot(tmp_path):
+    racine = monde(tmp_path, extra={"copilot": {}})  # aucun nom de modèle : `preparer` copilot refuserait
+    appels = []
+    code = lm.main(
+        [ID, "--prompt", "--moteur", "copilot"],
+        racine=racine,
+        maintenant=lambda: MAINT,
+        trouver=lambda n: None,
+        aide_copilot=lambda: appels.append(1) or "",
+    )
+    assert code == 0 and appels == []
+    texte = lire_prompt(racine)
+    assert "shell(python -m pytest)" in texte and "Bash(python -m pytest*)" not in texte
+
+
+def test_prompt_dry_run_annonce_moteur_vise_fichier_et_journal(tmp_path, capsys):
+    racine = monde(tmp_path, extra={"moteur_par_defaut": "copilot"})
+    assert aller(racine, ID, argv=["--prompt", "--dry-run"]) == 0
+    sortie_ = capsys.readouterr().out
+    assert "moteur visé copilot" in sortie_ and f"briefs/{ID}-prompt.md" in sortie_ and "preparee" in sortie_
+    assert journal(racine) == []
+
+
+def test_preparer_sans_commande_n_en_construit_pas(tmp_path):
+    racine = monde(tmp_path)
+    config = json.loads((racine / "config.json").read_text(encoding="utf-8"))
+    p = lm.preparer(ID, racine, config, "copilot", None, commande=False)
+    assert p.commande == [] and p.moteur == "copilot" and p.autorise == ["shell(python -m pytest)"]
+
+
+# ---------- 0.3.1 : ligne vide du prompt ----------
+def test_prompt_commandes_de_verification_vides_ou_non(tmp_path):
+    racine = monde(tmp_path)
+    assert aller(racine, ID, argv=["--prompt"]) == 0
+    assert "habituelles de ce projet : Bash(python -m pytest*)\n" in lire_prompt(racine)
+    (racine / "briefs" / f"{ID2}.md").write_text(brief(projet="autre"), encoding="utf-8")
+    assert aller(racine, ID2, argv=["--prompt"]) == 0
+    texte = lire_prompt(racine, ID2)
+    assert "habituelles de ce projet : (aucune déclarée)" in texte
+    assert not any(ligne.rstrip().endswith("projet :") for ligne in texte.splitlines())
+
+
+def test_aucun_motif_plus_puis_or_sans_parentheses_dans_les_outils():
+    import re
+    from pathlib import Path
+
+    # `"texte" + x or "défaut"` : le `or` porte sur toute la concaténation, jamais sur `x` seul
+    motif = re.compile(r"""\+\s*[^()\n]*\bor\s+["'(]""")
+    for fichier in sorted(Path(lm.__file__).parent.glob("*.py")):
+        for numero, ligne in enumerate(fichier.read_text(encoding="utf-8").splitlines(), 1):
+            if motif.search(ligne):
+                pytest.fail(f"{fichier.name}:{numero} : `+` puis `or` sans parenthèses : {ligne.strip()}")
+
+
+# ---------- 0.3.1 : aide lue sur la version réellement lancée ----------
+AIDE_AVEC_OPTION = "Options:\n  --no-auto-update   do not update\n  --reasoning-effort <e>  (low, medium, high)\n"
+AIDE_SIMPLE = "Options:\n  --reasoning-effort <e>  (low, medium, high, xhigh)\n"
+
+
+class FauxAide:
+    """Lecteur simulé : `reponses` associe les arguments (tuple) à (code, texte) ; note les appels ; lève sinon."""
+
+    def __init__(self, reponses):
+        self.reponses, self.appels = reponses, []
+
+    def __call__(self, args):
+        self.appels.append(tuple(args))
+        if tuple(args) not in self.reponses:
+            raise OSError("commande inattendue")
+        return self.reponses[tuple(args)]
+
+
+def test_aide_lue_d_abord_avec_no_auto_update_et_c_est_elle_qui_compte():
+    # deux versions côte à côte : l'aide avec l'option diffère de l'aide simple (efforts différents)
+    lecteur = FauxAide({("--no-auto-update", "--help"): (0, AIDE_AVEC_OPTION), ("--help",): (0, AIDE_SIMPLE)})
+    lue = lm.lire_aide_versionnee(lecteur)
+    assert lue.avec_option and lue.texte == AIDE_AVEC_OPTION and lecteur.appels == [("--no-auto-update", "--help")]
+    analyse = lm.analyser_aide_copilot(lue.texte, lue.avec_option)
+    assert analyse.versionnee and analyse.efforts == ("low", "medium", "high")
+
+
+@pytest.mark.parametrize(
+    "option",
+    [
+        (2, "error: unknown option '--no-auto-update'"),  # le message d'erreur cite l'option : sans effet
+        (0, AIDE_SIMPLE),  # aide sans l'option
+        (0, ""),  # sortie vide
+    ],
+)
+def test_aide_repli_sur_help_seul_sans_passer_l_option(option):
+    lecteur = FauxAide({("--no-auto-update", "--help"): option, ("--help",): (0, AIDE_SIMPLE)})
+    lue = lm.lire_aide_versionnee(lecteur)
+    assert not lue.avec_option and lue.texte == AIDE_SIMPLE and lue.cause
+    assert lecteur.appels == [("--no-auto-update", "--help"), ("--help",)]
+    assert not lm.analyser_aide_copilot(lue.texte, lue.avec_option).versionnee
+
+
+def test_aide_option_listee_seulement_par_help_simple_n_est_pas_transmise(tmp_path):
+    p = preparer(monde(tmp_path), moteur="copilot", aide=lm.AideLue(AIDE_AVEC_OPTION, False, "repli"))
+    assert "--no-auto-update" not in p.commande
+    assert any("non transmis" in n and "--no-auto-update" in n for n in p.notes)
+    p2 = preparer(monde(tmp_path / "2"), moteur="copilot", aide=lm.AideLue(AIDE_AVEC_OPTION, True))
+    assert "--no-auto-update" in p2.commande
+
+
+def test_aide_non_lue_ni_options_ni_plantage():
+    lue = lm.lire_aide_versionnee(FauxAide({}))  # tout lève
+    assert lue == lm.AideLue("", False, "OSError")
+
+
+def test_lire_aide_copilot_lance_l_option_puis_le_repli(monkeypatch):
+    appels = []
+
+    class Resultat:
+        def __init__(self, code, out):
+            self.returncode, self.stdout, self.stderr = code, out, ""
+
+    def faux_run(commande, **_k):
+        appels.append(commande[1:])
+        return Resultat(*({("--no-auto-update", "--help"): (0, AIDE_AVEC_OPTION)}).get(tuple(commande[1:]), (1, "")))
+
+    monkeypatch.setattr(lm.shutil, "which", lambda n: "/x/copilot")
+    monkeypatch.setattr(subprocess, "run", faux_run)
+    lue = lm.lire_aide_copilot()
+    assert lue.avec_option and appels == [["--no-auto-update", "--help"]]
+    monkeypatch.setattr(lm.shutil, "which", lambda n: None)
+    absente = lm.lire_aide_copilot()
+    assert absente.texte == "" and "absent" in absente.cause
+
+
+def test_dry_run_dit_quelle_aide_a_ete_lue(tmp_path, capsys):
+    racine = monde(tmp_path)
+    for aide, attendu in (
+        (lm.AideLue(AIDE_AVEC_OPTION, True), "lue par `copilot --no-auto-update --help`"),
+        (
+            lm.AideLue(AIDE_SIMPLE, False, "sortie vide"),
+            "lue par `copilot --help` (sortie vide) ; la mission ne passe pas",
+        ),
+        (lm.AideLue("", False, "OSError"), "non lue (OSError)"),
+    ):
+        assert aller(racine, ID, argv=["--dry-run", "--moteur", "copilot"], aide=aide) == 0
+        assert attendu in capsys.readouterr().out
+
+
+def test_dry_run_usage_dit_liste_blanche_et_plus_brut(tmp_path, capsys):
+    assert aller(monde(tmp_path), ID, argv=["--dry-run", "--moteur", "copilot"], aide=AIDE_RECENTE) == 0
+    sortie_ = capsys.readouterr().out
+    assert "liste blanche" in sortie_ and "(brut)" not in sortie_
+
+
+# ---------- 0.3.1 : refus de permission « non relevé » ----------
+def test_copilot_refus_de_permission_non_releves_jamais_zero(tmp_path):
+    racine = monde(tmp_path)
+    faux = FauxExecuteur(lm.Sortie("Fait.\n", "", False, 5.0, 0))
+    assert aller(racine, ID, argv=["--moteur", "copilot"], executer=faux) == 0
+    note = journal(racine)[-1]["note"]
+    assert "refus de permission non relevés" in note and "0 refus" not in note
+    cr = compte_rendu(racine)
+    assert "Refus de permission : non relevé" in cr and "Refus de permission : 0" not in cr
+
+
+def test_claude_garde_le_nombre_de_refus_lu(tmp_path):
+    racine = monde(tmp_path)
+    refus = [{"tool_name": "Bash", "tool_input": {"command": "git push"}}]
+    assert aller(racine, ID, executer=FauxExecuteur(sortie(refus=refus))) == 0
+    assert "1 refus de permission" in journal(racine)[-1]["note"]
+    assert "Refus de permission : 1" in compte_rendu(racine)
+    racine2 = monde(tmp_path / "2")
+    assert aller(racine2, ID, executer=FauxExecuteur(sortie())) == 0  # liste vide lue : c'est bien zéro
+    assert "0 refus de permission" in journal(racine2)[-1]["note"]
+    assert "Refus de permission : 0" in compte_rendu(racine2)
+
+
+def test_claude_sans_liste_de_refus_ou_sortie_illisible_est_non_releve(tmp_path):
+    racine = monde(tmp_path)
+    corps = json.dumps({"type": "result", "is_error": False, "result": "ok"})
+    assert aller(racine, ID, executer=FauxExecuteur(lm.Sortie(corps, "", False, 5.0, 0))) == 0
+    assert "refus de permission non relevés" in journal(racine)[-1]["note"]
+    racine2 = monde(tmp_path / "2")
+    assert aller(racine2, ID, executer=FauxExecuteur(lm.Sortie("pas du json", "", False, 5.0, 0))) == 1
+    assert "non relevé" in compte_rendu(racine2) and "0 refus" not in journal(racine2)[-1]["note"]

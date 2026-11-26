@@ -10,8 +10,9 @@ Moteurs :
   interdits sont transmis. Sortie JSON lue (coût, tours, refus de permission, identifiant de session).
 - `copilot` : `copilot -p`, brief passé dans l'argument du prompt. Options utilisées d'après la documentation de
   GitHub Copilot CLI (`--allow-tool`, `--deny-tool`, `--add-dir`, `--model`, `-s`, `--no-ask-user`). **Non testé en
-  réel.** Au lancement, le lanceur lit `copilot --help` (local, sans service) et ne transmet `--reasoning-effort`,
-  `--max-ai-credits` et `--usage-output-file` que si l'aide les liste ; `--allow-all-tools` seulement sur choix
+  réel.** Au lancement, le lanceur lit l'aide de la version qui sera lancée (`copilot --no-auto-update --help`,
+  repli sur `copilot --help` ; local, sans service) et ne transmet `--reasoning-effort`, `--max-ai-credits`,
+  `--usage-output-file` et `--no-auto-update` que si cette aide les liste ; `--allow-all-tools` seulement sur choix
   explicite de la config. Les crédits IA ne sont pas des USD : jamais de conversion (réglage
   `copilot.credits_ia_max`). La durée max reste appliquée par ce lanceur. Voir docs/copilot.md.
 
@@ -80,7 +81,9 @@ from aide_copilot import (  # noqa: F401 — réexportés : tests et appelants l
     EFFORTS_COPILOT_CONNUS,
     OPTIONS_COPILOT_SUIVIES,
     AideCopilot,
+    AideLue,
     analyser_aide_copilot,
+    lire_aide_versionnee,
 )
 
 RACINE = commun.RACINE
@@ -145,7 +148,8 @@ SOCLE_AUTORISE_COPILOT = [
 INTERDITS_COPILOT = [f"shell({cmd})" for cmd in COMMANDES_GIT_INTERDITES]
 
 MOTIF_ALLOW_ALL = re.compile(r"allow[- ]all[- ]tools", re.I)
-LIMITE_RESUME_USAGE = 400
+LIMITE_NOM_CLE = 40  # longueur max d'un nom de clé ou de modèle repris du fichier d'usage
+MAX_NOMS_CLES = 10  # nombre max de noms de clés inconnues citées
 MODELE_AUTO = "auto"
 MODELE_NON_RELEVE = "non relevé"
 MESSAGE_ALLOW_ALL = (
@@ -374,6 +378,7 @@ class Plan:
     options_transmises: list = field(default_factory=list)  # copilot : options facultatives ajoutées à la commande
     fichier_usage: str = ""  # copilot : fichier d'usage demandé (vide si l'option n'existe pas)
     tous_outils: bool = False  # copilot : --allow-all-tools passé, sur choix explicite de la config
+    aide_lue: AideLue | None = None  # copilot : aide lue et commande qui l'a donnée (None : moteur claude)
 
     def base_journal(self) -> dict:
         return dict(
@@ -434,18 +439,37 @@ def construire_commande_copilot(p: Plan, modeles: dict, extras: tuple | list = (
     return cmd
 
 
-def lire_aide_copilot() -> str:
-    """Texte de `copilot --help` (commande locale, sans service) ; vide si la commande est absente ou échoue."""
+def lire_aide_copilot() -> AideLue:
+    """Aide de la version de copilot qui sera lancée (commandes locales, sans service) ; texte vide si absente.
+
+    Lit d'abord `copilot --no-auto-update --help` : si cette aide liste `--no-auto-update`, c'est celle de la version
+    lancée (voir `aide_copilot.lire_aide_versionnee`) ; sinon repli sur `copilot --help` et l'option n'est pas passée."""
     exe = shutil.which("copilot")
     if not exe:
-        return ""
-    try:
+        return AideLue(cause="copilot absent du PATH")
+
+    def lire(args: list[str]) -> tuple[int, str]:
         r = subprocess.run(
-            [exe, "--help"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30
+            [exe, *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            stdin=subprocess.DEVNULL,
         )
-    except Exception:  # noqa: BLE001
-        return ""
-    return (r.stdout or "") + "\n" + (r.stderr or "")
+        return r.returncode, (r.stdout or "") + "\n" + (r.stderr or "")
+
+    return lire_aide_versionnee(lire)
+
+
+def _normaliser_aide(aide: object) -> AideLue:
+    """Accepte le résultat de `lire_aide_copilot`, ou un simple texte (tests, appelants) : l'option est alors réputée
+    lue avec `--no-auto-update` si le texte la liste."""
+    if isinstance(aide, AideLue):
+        return aide
+    texte = aide if isinstance(aide, str) else ""
+    return AideLue(texte, "--no-auto-update" in analyser_aide_copilot(texte).options)
 
 
 def exige_allow_all_tools(sortie: Sortie) -> bool:
@@ -464,18 +488,21 @@ def _nombre_fini(v: object) -> bool:
     return isinstance(v, (int, float)) and not isinstance(v, bool)
 
 
-def _brut_tronque(objet: object) -> str:
-    compact = " ".join(json.dumps(objet, ensure_ascii=False).split())
-    return compact[:LIMITE_RESUME_USAGE] + "…" if len(compact) > LIMITE_RESUME_USAGE else compact
+def _libelle(cle: object) -> str:
+    """Nom de clé ou de modèle affichable : imprimable, court. Jamais une autre valeur du fichier."""
+    texte = "".join(c if c.isprintable() else "?" for c in str(cle))
+    return texte[:LIMITE_NOM_CLE] + "…" if len(texte) > LIMITE_NOM_CLE else texte
 
 
 def lire_usage(chemin: Path) -> Usage:
     """Lit le fichier d'usage écrit par copilot, puis le supprime.
 
-    Format observé sur une version du CLI, **non garanti** : les champs connus (`currentModel`,
-    `totalPremiumRequestCost`, `totalNanoAiu`, `tokenDetails`, `codeChanges`) sont repris s'ils sont présents et du bon
-    type, leur absence est tolérée et dite, un champ de type inattendu est signalé (jamais deviné), le reste est gardé
-    brut et tronqué. Le modèle n'est JAMAIS déduit : sans `currentModel` texte, `modele` vaut None."""
+    Format observé sur une version du CLI, **non garanti**. Liste blanche : seuls sont repris `currentModel`,
+    `totalPremiumRequestCost`, `totalNanoAiu`, `totalUserRequests`, `totalApiDurationMs`, les jetons de `tokenDetails`
+    et les `codeChanges` numériques, s'ils sont du bon type. Rien d'autre n'est recopié : les autres clés de premier
+    niveau sont seulement comptées et nommées (jamais leurs valeurs) ; un champ de type inattendu est signalé, jamais
+    deviné. Un fichier qui n'est pas du JSON objet est dit « illisible » avec le type de l'erreur, sans son contenu.
+    Le modèle n'est JAMAIS déduit : sans `currentModel` texte, `modele` vaut None."""
     try:
         brut = chemin.read_text(encoding="utf-8", errors="replace")
     except FileNotFoundError:
@@ -490,24 +517,27 @@ def lire_usage(chemin: Path) -> Usage:
         return Usage(None, "fichier d'usage vide")
     try:
         d = json.loads(brut)
-    except ValueError:
-        d = None
-    entete = "usage (format observé sur une version, non garanti) : "
+    except (ValueError, RecursionError) as e:
+        return Usage(None, f"fichier d'usage illisible ({type(e).__name__})")
     if not isinstance(d, dict):
-        return Usage(
-            None, entete + "JSON invalide ou inattendu, brut : " + " ".join(brut.split())[:LIMITE_RESUME_USAGE]
-        )
+        return Usage(None, f"fichier d'usage illisible (JSON de type {type(d).__name__}, un objet est attendu)")
+    entete = "usage (format observé sur une version, non garanti) : "
 
     morceaux, inattendus, restant = [], [], dict(d)
     modele = restant.pop("currentModel", None)
     if isinstance(modele, str) and modele.strip():
-        modele = modele.strip()
+        modele = _libelle(modele.strip())
         morceaux.append(f"modèle {modele}")
     else:
         if "currentModel" in d:
             inattendus.append("currentModel")
         modele = None
-    for cle, libelle in (("totalPremiumRequestCost", "coût premium"), ("totalNanoAiu", "nanoAIU")):
+    for cle, libelle in (
+        ("totalPremiumRequestCost", "coût premium"),
+        ("totalNanoAiu", "nanoAIU"),
+        ("totalUserRequests", "requêtes utilisateur"),
+        ("totalApiDurationMs", "durée API ms"),
+    ):
         v = restant.pop(cle, None)
         if _nombre_fini(v):
             morceaux.append(f"{libelle} {v:g}")
@@ -544,13 +574,15 @@ def lire_usage(chemin: Path) -> Usage:
         inattendus.append("codeChanges")
 
     if not morceaux:
-        morceaux.append("aucun champ connu relevé")
+        morceaux.append("aucun champ reconnu relevé")
     if modele is None:
         morceaux.append(f"modèle {MODELE_NON_RELEVE}")
     if inattendus:
         morceaux.append("type inattendu : " + ", ".join(inattendus))
     if restant:
-        morceaux.append("reste brut : " + _brut_tronque(restant))
+        noms = [_libelle(k) for k in list(restant)[:MAX_NOMS_CLES]]
+        suite = f" (+{len(restant) - MAX_NOMS_CLES} autres)" if len(restant) > MAX_NOMS_CLES else ""
+        morceaux.append(f"{len(restant)} champ(s) non reconnu(s), non repris : {', '.join(noms)}{suite}")
     return Usage(modele, entete + " ; ".join(morceaux))
 
 
@@ -599,9 +631,15 @@ def preparer_copilot(plan: Plan, config: dict, racine: Path, aide: AideCopilot) 
             "d'usage (`currentModel`), sinon le journal écrit « non relevé »."
         )
 
-    # versions multiples : sans --no-auto-update, une mise à jour peut changer de version entre deux lancements
-    if "--no-auto-update" in aide.options:
+    # versions multiples : sans --no-auto-update, une mise à jour peut changer de version entre deux lancements ;
+    # l'option n'est passée que si l'aide lue AVEC elle la liste (aide de la version réellement lancée)
+    if aide.versionnee:
         extras.append("--no-auto-update")
+    elif "--no-auto-update" in aide.options:
+        notes.append(
+            "copilot : --no-auto-update n'est listé que par `copilot --help`, pas par l'aide lue avec l'option : "
+            "non transmis."
+        )
 
     # effort
     if "--reasoning-effort" in aide.options:
@@ -643,7 +681,8 @@ def preparer_copilot(plan: Plan, config: dict, racine: Path, aide: AideCopilot) 
         plan.fichier_usage = str(Path(racine) / "donnees" / f"usage-{plan.mission}.json")
         extras.append(f"--usage-output-file={plan.fichier_usage}")
         notes.append(
-            "copilot : fichier d'usage demandé ; son format n'est pas éprouvé, il sera résumé tel quel (brut)."
+            "copilot : fichier d'usage demandé ; son format n'est pas éprouvé : seuls les champs reconnus (liste "
+            "blanche) sont repris, les autres ne sont signalés que par leurs noms, jamais par leurs valeurs."
         )
 
     # autorisation des outils : inchangée par défaut ; --allow-all-tools seulement sur choix explicite
@@ -679,10 +718,19 @@ def charger_projets(config: dict) -> dict:
     return config
 
 
-def preparer(mission: str, racine: Path, config: dict, moteur: str = "claude", aide: str | None = None) -> Plan:
+def preparer(
+    mission: str,
+    racine: Path,
+    config: dict,
+    moteur: str = "claude",
+    aide: AideLue | str | None = None,
+    commande: bool = True,
+) -> Plan:
     """Contrôles qui ne dépendent que des fichiers (brief, config.json, grille) ; lève Refus.
 
-    `aide` : texte de `copilot --help` fourni par l'appelant (None ou vide = non lu : aucune option facultative)."""
+    `aide` : aide de copilot lue par l'appelant (`AideLue`, ou un texte ; None ou vide = non lue : aucune option
+    facultative). `commande=False` : ne construit aucune commande (voies sans lanceur : `--prompt`) ; le moteur du plan
+    ne sert alors qu'à choisir la liste d'outils du projet (`autorise` ou `autorise_copilot`)."""
     if not ID_MISSION.match(mission):
         raise Refus(f"« {mission} » n'est pas un identifiant de mission (attendu : m-AAAAMMJJ-NN-xxxx).")
     if moteur not in MOTEURS:
@@ -753,11 +801,15 @@ def preparer(mission: str, racine: Path, config: dict, moteur: str = "claude", a
     plan.prompt = texte.rstrip("\n") + PIED.replace("{jour}", plan_jour()).replace(
         "{colonnes}", ", ".join(kanban.COLONNES)
     )
+    if not commande:
+        return plan
     if moteur == "claude":
         plan.entree = plan.prompt
         plan.commande = construire_commande_claude(plan)
     else:
-        preparer_copilot(plan, config, racine, analyser_aide_copilot(aide))
+        lue = _normaliser_aide(aide)
+        plan.aide_lue = lue
+        preparer_copilot(plan, config, racine, analyser_aide_copilot(lue.texte, lue.avec_option))
     return plan
 
 
@@ -892,7 +944,7 @@ class Contexte:
     git: Callable = git_reel
     eveil: Callable[[bool], None] = maintenir_eveil
     trouver: Callable[[str], str | None] = shutil.which
-    aide_copilot: Callable[[], str] = lire_aide_copilot
+    aide_copilot: Callable[[], AideLue | str] = lire_aide_copilot
     verrou_journal: threading.Lock = field(default_factory=threading.Lock, repr=False)
     verrou_sortie: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
@@ -1042,13 +1094,16 @@ def executer_mission(plan: Plan, ctx: Contexte) -> str:
             alertes.append("RÉFÉRENCE DISTANTE CHANGÉE (push ?)")
         if avant["head"] != apres["head"]:
             commits = ctx.git(plan.git_root, "log", "--oneline", f"{avant['head']}..{apres['head']}")
-    refus = d.get("permission_denials") or []
+    # refus de permission : comptés seulement si la sortie les donne (Claude : liste `permission_denials`) ;
+    # sinon « non relevé », jamais 0 (la sortie de Copilot ne les compte pas, une sortie illisible non plus)
+    lus = d.get("permission_denials") if plan.moteur == "claude" else None
+    refus = lus if isinstance(lus, list) else []
+    refus_txt = f"{len(refus)} refus de permission" if isinstance(lus, list) else "refus de permission non relevés"
     texte = d.get("result") if isinstance(d.get("result"), str) else ""
     cout = _cout(d)
     cout_txt = f"{cout:.2f} USD" if cout is not None else "coût non fourni"
-    note = (
-        f"{statut} en {sortie.duree / 60:.1f} min, {cout_txt}, {d.get('num_turns', '?')} tours, "
-        f"{len(refus)} refus de permission" + ("; " + "; ".join(alertes) if alertes else "")
+    note = f"{statut} en {sortie.duree / 60:.1f} min, {cout_txt}, {d.get('num_turns', '?')} tours, {refus_txt}" + (
+        "; " + "; ".join(alertes) if alertes else ""
     )
     if essais and evenement == "echouee":
         note += f"; {essais} reprise(s) sur limite d'usage"
@@ -1068,7 +1123,8 @@ def executer_mission(plan: Plan, ctx: Contexte) -> str:
         f"# Compte rendu {plan.mission} — {plan.carte}",
         "",
         f"Statut : {statut} · {sortie.duree / 60:.1f} min · {cout_txt} · moteur {plan.moteur} · session `{d.get('session_id')}`",
-        f"Refus de permission : {len(refus)}",
+        "Refus de permission : "
+        + (str(len(refus)) if isinstance(lus, list) else "non relevé (la sortie du moteur ne les compte pas)"),
     ]
     for r in refus[:10]:
         entete.append(f"  - {r.get('tool_name')} : {json.dumps(r.get('tool_input'), ensure_ascii=False)[:200]}")
@@ -1127,7 +1183,7 @@ def construire_prompt_autonome(plan: Plan, voie: str) -> str:
         f"- Dossier de travail : {plan.cwd} (ouvre la session dans ce dossier)",
         f"- Dépôt git : {plan.git_root or '(pas de dépôt suivi)'}",
         f"- Dossiers en plus : {', '.join(plan.add_dirs) or '(aucun)'}",
-        "- Commandes de vérification habituelles de ce projet : " + ", ".join(plan.autorise) or "(aucune déclarée)",
+        "- Commandes de vérification habituelles de ce projet : " + (", ".join(plan.autorise) or "(aucune déclarée)"),
         "",
         "## Recommandation de modèle et d'effort",
         f"- Classe de modèle : `{plan.modele}` (registre/grille.md) ; {effort}.",
@@ -1158,31 +1214,45 @@ def ecrire_prompt(ctx: Contexte, plan: Plan, voie: str) -> Path:
     if cible.exists():
         cible.replace(dossier / f"{plan.mission}-prompt.{ctx.maintenant().strftime('%Y%m%d-%H%M%S')}.md")
     cible.write_text(construire_prompt_autonome(plan, voie), encoding="utf-8", newline="\n")
+    # `moteur` sur une ligne `lancee`/`terminee` dit le moteur LANCÉ ; ici aucun moteur ne tourne : le champ s'appelle
+    # `moteur_vise` (celui de --moteur ou de `moteur_par_defaut`, qui règle seulement la liste d'outils du prompt).
     base = {**plan.base_journal(), "voie": voie}
+    base["moteur_vise"] = base.pop("moteur")
     ctx.ecrire_journal(
         evenement="preparee",
         **base,
-        note=f"prompt écrit dans briefs/{cible.name} ; {len(capacites.controles_non_garantis(voie))} contrôle(s) "
-        "non garanti(s) ; rien n'est lancé",
+        note=f"prompt écrit dans briefs/{cible.name} ; moteur visé : {plan.moteur} (rien n'est lancé) ; "
+        f"{len(capacites.controles_non_garantis(voie))} contrôle(s) non garanti(s)",
     )
     return cible
 
 
-def preparer_prompts(ids: list[str], voie: str, config: dict, ctx: Contexte, dry_run: bool) -> int:
+def preparer_prompts(
+    ids: list[str], voie: str, config: dict, ctx: Contexte, dry_run: bool, moteur: str = "claude"
+) -> int:
     """Écrit un prompt autonome par mission (ou l'annonce en `--dry-run`). Ne lance rien et ne vérifie ni verrou ni
-    journal : ces contrôles n'existent que dans la voie `cli`. Code 0, ou 2 sur refus."""
+    journal : ces contrôles n'existent que dans la voie `cli`. Code 0, ou 2 sur refus.
+
+    `moteur` est le moteur VISÉ (`--moteur`, sinon `moteur_par_defaut`) : il choisit la liste d'outils du projet ; aucune
+    commande n'est construite, aucun exécutable cherché ni lancé, aucune aide de Copilot lue."""
     try:
-        plans = [preparer(m, ctx.racine, config, "claude") for m in ids]
+        plans = [preparer(m, ctx.racine, config, moteur, commande=False) for m in ids]
     except Refus as r:
         print(f"REFUS : {r}", file=sys.stderr)
         return 2
     for p in plans:
         if dry_run:
-            print(f"[dry-run] {p.mission} — {p.carte} : prompt autonome (voie {voie}), rien n'est écrit ni journalisé")
+            print(
+                f"[dry-run] {p.mission} — {p.carte} : prompt autonome (voie {voie}, moteur visé {p.moteur}), "
+                f"écrirait briefs/{p.mission}-prompt.md et la ligne `preparee` au journal ; rien n'est écrit ni lancé"
+            )
             print("  contrôles non garantis : " + " ; ".join(capacites.controles_non_garantis(voie)))
             continue
         cible = ecrire_prompt(ctx, p, voie)
-        print(f"{p.mission} : prompt écrit dans briefs/{cible.name} (journal : preparee, rien n'est lancé)")
+        print(
+            f"{p.mission} : prompt écrit dans briefs/{cible.name} (journal : preparee, moteur visé {p.moteur}, "
+            "rien n'est lancé)"
+        )
         print("  Contrôles NON garantis dans cette voie :")
         for c in capacites.controles_non_garantis(voie):
             print(f"    - {c}")
@@ -1190,6 +1260,19 @@ def preparer_prompts(ids: list[str], voie: str, config: dict, ctx: Contexte, dry
 
 
 # ---------- affichage ----------
+def _decrire_aide(aide: AideLue | None) -> str:
+    """Quelle aide a été lue (la même commande que celle de la mission, ou un repli dit en clair)."""
+    if aide is None or not aide.texte.strip():
+        cause = f" ({aide.cause})" if aide and aide.cause else ""
+        return "non lue" + cause + " : aucune option facultative transmise"
+    if aide.avec_option:
+        return (
+            "lue par `copilot --no-auto-update --help` (aide de la version lancée ; la mission passe --no-auto-update)"
+        )
+    precision = f" ({aide.cause})" if aide.cause else ""
+    return f"lue par `copilot --help`{precision} ; la mission ne passe pas --no-auto-update"
+
+
 def afficher_plan(plan: Plan, controles: list[str], ctx: Contexte) -> None:
     print(f"[dry-run] {plan.mission} — {plan.carte}")
     print(f"  moteur   : {plan.moteur}")
@@ -1215,6 +1298,7 @@ def afficher_plan(plan: Plan, controles: list[str], ctx: Contexte) -> None:
         print("  env      : variables de débogueur retirées pour la mission : " + ", ".join(retraits))
     print(f"  journal  : {ctx.journal} · compte rendu : briefs/{plan.mission}-compte-rendu.md")
     if plan.moteur == "copilot":
+        print(f"  aide copilot : {_decrire_aide(plan.aide_lue)}")
         print(f"  options copilot détectées : {', '.join(plan.options_detectees) or '(aucune)'}")
         print(f"  options copilot transmises : {', '.join(plan.options_transmises) or '(aucune)'}")
     for n in plan.notes:
@@ -1301,7 +1385,7 @@ def main(
     git: Callable | None = None,
     eveil: Callable[[bool], None] | None = None,
     trouver: Callable[[str], str | None] | None = None,
-    aide_copilot: Callable[[], str] | None = None,
+    aide_copilot: Callable[[], AideLue | str] | None = None,
 ) -> int:
     ap = argparse.ArgumentParser(
         description="Lance des missions briefées (mode 2) : enchaînées, ou en parallèle si elles visent des projets "
@@ -1362,16 +1446,13 @@ def main(
     moteur = a.moteur or config.get("moteur_par_defaut") or "claude"
 
     if a.prompt:
-        if a.parallele or a.moteur:
-            print(
-                "REFUS : --prompt ne se combine ni avec --parallele ni avec --moteur (rien n'est lancé).",
-                file=sys.stderr,
-            )
+        if a.parallele:
+            print("REFUS : --prompt ne se combine pas avec --parallele (rien n'est lancé).", file=sys.stderr)
             return 2
         if len(set(a.missions)) != len(a.missions):
             print("REFUS : la même mission est citée deux fois.", file=sys.stderr)
             return 2
-        return preparer_prompts(a.missions, a.voie, config, ctx, a.dry_run)
+        return preparer_prompts(a.missions, a.voie, config, ctx, a.dry_run, moteur)
     if a.voie != "prompt":
         print("REFUS : --voie ne s'utilise qu'avec --prompt.", file=sys.stderr)
         return 2
@@ -1379,7 +1460,7 @@ def main(
     try:
         if len(set(a.missions)) != len(a.missions):
             raise Refus("la même mission est citée deux fois.")
-        aide = ctx.aide_copilot() if moteur == "copilot" else None  # `copilot --help` : local, sans service
+        aide = ctx.aide_copilot() if moteur == "copilot" else None  # aide locale, sans service
         plans = [preparer(m, ctx.racine, config, moteur, aide) for m in a.missions]
         cles = cles_des_projets(config)
         conflits = []

@@ -21,8 +21,9 @@ Règles (aucune capacité n'est déclarée « disponible » sur un échec avalé
 - une capacité déclarée à la main (`source: declaree`) n'est **jamais** écrasée par la détection ;
 - `--ecrire` ne modifie que la clé `capacites` de `config.json` (écriture atomique) et ne crée jamais `config.json`.
 
-Pour `copilot`, l'aide (`--help`) est lue d'abord : `--version` reçoit `--no-auto-update` quand l'aide le liste (c'est
-l'option que le lanceur transmet lui-même, pour lire la version qui sera réellement lancée).
+Pour `copilot`, l'aide est lue d'abord avec `--no-auto-update --help` : si cette aide liste `--no-auto-update`, c'est
+celle de la version qui sera lancée et `--version` reçoit aussi l'option (c'est celle que le lanceur transmet) ; sinon
+repli sur `--help` seul et `--version` est lu sans l'option (même règle que le lanceur, `aide_copilot.py`).
 
 Aucun appel réel dans les tests : l'exécuteur local, `which` et l'horloge sont injectés.
 """
@@ -38,7 +39,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import commun
-from aide_copilot import AideCopilot, analyser_aide_copilot
+from aide_copilot import AideCopilot, analyser_aide_copilot, lire_aide_versionnee
 
 DISPONIBLE, INDISPONIBLE, NON_TESTE = "disponible", "indisponible", "non_teste"
 ETATS = (DISPONIBLE, INDISPONIBLE, NON_TESTE)
@@ -183,11 +184,16 @@ def detecter_executable(
     options: list[str] = []
     complement = ""
     if nom == "cli_copilot":
-        aide, cause_aide = _lire(lanceur, [chemin, "--help"])
-        analyse = analyser_aide_copilot(aide)
-        if "--no-auto-update" in analyse.options:
+
+        def lire_aide(args: list[str]) -> tuple[int, str]:
+            code, out, err = lanceur([chemin, *args])
+            return code, (out or "") + ("\n" + err if err and err.strip() else "")
+
+        lue = lire_aide_versionnee(lire_aide)
+        analyse = analyser_aide_copilot(lue.texte, lue.avec_option)
+        if analyse.versionnee:
             options.append("--no-auto-update")
-        complement = _resume_aide(analyse, cause_aide)
+        complement = _resume_aide(analyse, lue.cause)
     texte, cause = _lire(lanceur, [chemin, "--version", *options])
     if texte is None:
         return Capacite(nom, NON_TESTE, f"« --version » n'a pas pu être lu : {cause}", date)

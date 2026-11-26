@@ -94,10 +94,10 @@ def test_une_detection_qui_echoue_est_non_teste_avec_la_cause_jamais_disponible(
 
 
 def test_seule_la_version_et_l_aide_sont_lancees_jamais_un_service():
-    lanceur = FauxLanceur({("--help",): (0, AIDE_AVEC, "")})
+    lanceur = FauxLanceur({("--no-auto-update", "--help"): (0, AIDE_AVEC, "")})
     inv(lanceur=lanceur)
     arguments = {tuple(c[1:]) for c in lanceur.appels}
-    assert arguments <= {("--version",), ("--help",), ("--version", "--no-auto-update")}
+    assert arguments <= {("--version",), ("--help",), ("--no-auto-update", "--help"), ("--version", "--no-auto-update")}
     assert not any("auth" in " ".join(c) for c in lanceur.appels)
 
 
@@ -119,26 +119,57 @@ def test_toutes_les_capacites_sont_inventoriees_dans_l_ordre():
 
 
 # ---------- copilot ----------
-def test_copilot_version_lue_avec_no_auto_update_quand_l_aide_le_liste():
+def test_copilot_version_lue_avec_no_auto_update_quand_l_aide_lue_avec_l_option_le_liste():
     lanceur = FauxLanceur(
-        {("--help",): (0, AIDE_AVEC, ""), ("--version", "--no-auto-update"): (0, "copilot 9.9\n", "")}
+        {
+            ("--no-auto-update", "--help"): (0, AIDE_AVEC, ""),
+            ("--version", "--no-auto-update"): (0, "copilot 9.9\n", ""),
+        }
     )
     c = inv(lanceur=lanceur)["cli_copilot"]
     assert c.etat == cap.DISPONIBLE
     assert "version : copilot 9.9 (lue avec --no-auto-update)" in c.note
     assert "--model auto documenté" in c.note
     assert ["/usr/bin/copilot", "--version", "--no-auto-update"] in lanceur.appels
+    assert ["/usr/bin/copilot", "--help"] not in lanceur.appels  # l'aide de la version lancée suffit
 
 
-def test_copilot_sans_no_auto_update_dans_l_aide_la_version_est_lue_sans():
-    lanceur = FauxLanceur({("--help",): (0, AIDE_SANS, ""), ("--version",): (0, "copilot 1.0\n", "")})
+def test_copilot_l_aide_est_lue_avec_l_option_et_non_avec_l_aide_simple():
+    # deux versions installées : l'aide simple liste l'option, l'aide lue avec l'option ne la liste pas
+    lanceur = FauxLanceur(
+        {
+            ("--no-auto-update", "--help"): (0, AIDE_SANS, ""),
+            ("--help",): (0, AIDE_AVEC, ""),
+            ("--version",): (0, "copilot 1.0\n", ""),
+        }
+    )
     c = inv(lanceur=lanceur)["cli_copilot"]
-    assert "(lue avec" not in c.note and "--model auto non documenté" in c.note
+    assert "(lue avec" not in c.note  # l'option n'est pas confirmée par l'aide de la version lancée
+    assert ["/usr/bin/copilot", "--version"] in lanceur.appels
+    assert ["/usr/bin/copilot", "--version", "--no-auto-update"] not in lanceur.appels
+
+
+def test_copilot_option_inconnue_repli_sur_l_aide_simple_et_version_sans_option():
+    lanceur = FauxLanceur(
+        {
+            ("--no-auto-update", "--help"): (2, "", "unknown option '--no-auto-update'"),
+            ("--help",): (0, AIDE_SANS, ""),
+            ("--version",): (0, "copilot 1.0\n", ""),
+        }
+    )
+    c = inv(lanceur=lanceur)["cli_copilot"]
+    assert c.etat == cap.DISPONIBLE and "(lue avec" not in c.note and "--model auto non documenté" in c.note
     assert ["/usr/bin/copilot", "--version"] in lanceur.appels
 
 
 def test_copilot_aide_illisible_n_empeche_pas_la_version_mais_le_dit():
-    lanceur = FauxLanceur({("--help",): (1, "", "erreur"), ("--version",): (0, "copilot 1.0\n", "")})
+    lanceur = FauxLanceur(
+        {
+            ("--no-auto-update", "--help"): (1, "", "erreur"),
+            ("--help",): (1, "", "erreur"),
+            ("--version",): (0, "copilot 1.0\n", ""),
+        }
+    )
     c = inv(lanceur=lanceur)["cli_copilot"]
     assert c.etat == cap.DISPONIBLE and "aide non lue" in c.note and "code de sortie 1" in c.note
 

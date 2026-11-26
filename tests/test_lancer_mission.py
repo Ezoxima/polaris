@@ -1113,3 +1113,146 @@ def test_le_pied_de_prompt_liste_les_colonnes_du_kanban(tmp_path, moteur):
     for colonne in kanban.COLONNES:
         assert colonne in plan.prompt
     assert ", ".join(kanban.COLONNES) in plan.prompt
+
+
+# ---------- mode 2 par paliers : prompt autonome ----------
+SECTIONS_PROMPT = (
+    "## Projet et contexte",
+    "## Recommandation de modèle et d'effort",
+    "## Brief (périmètre, critère de fin, compte rendu)",
+    "## Garde-fous communs",
+    "## Contrôles NON garantis dans cette voie",
+)
+
+
+def lire_prompt(racine, mission=ID):
+    return (racine / "briefs" / f"{mission}-prompt.md").read_text(encoding="utf-8")
+
+
+def test_prompt_autonome_contient_toutes_les_sections_et_le_brief(tmp_path):
+    racine = monde(tmp_path)
+    assert aller(racine, ID, argv=["--prompt"]) == 0
+    texte = lire_prompt(racine)
+    for section in SECTIONS_PROMPT:
+        assert section in texte, section
+    for attendu in (
+        "Objectif : tester.",  # le brief, intégralement
+        "Projet : demo · variante : FR",
+        "Jamais `git push`",
+        "## Fait",
+        "## Carte",
+        "## Reste à décider par l'utilisateur",
+        "Classe de modèle : `sonnet`",
+        "effort `high` si ta plateforme permet de le régler",
+        "ne contourne pas",
+    ):
+        assert attendu in texte, attendu
+    assert not (racine / "donnees" / "STOP").exists()
+
+
+def test_prompt_liste_tous_les_controles_non_garantis(tmp_path):
+    racine = monde(tmp_path)
+    assert aller(racine, ID, argv=["--prompt"]) == 0
+    texte = lire_prompt(racine)
+    for libelle in lm.capacites.LIBELLES_CONTROLES.values():
+        assert libelle in texte, libelle
+    assert "donnees/STOP" in texte and "à relever à la main" in texte
+
+
+def test_prompt_sous_session_meme_texte_mais_voie_notee(tmp_path):
+    r1, r2 = monde(tmp_path / "a"), monde(tmp_path / "b")
+    assert aller(r1, ID, argv=["--prompt"]) == 0
+    assert aller(r2, ID, argv=["--prompt", "--voie", "sous_session"]) == 0
+    t1, t2 = lire_prompt(r1), lire_prompt(r2)
+    assert "voie « prompt »" in t1 and "voie « sous_session »" in t2
+    corps = lambda t: t.split("## Projet et contexte", 1)[1].split("## Contrôles NON garantis", 1)[0]  # noqa: E731
+    assert corps(t1) == corps(t2).replace(str(tmp_path / "b"), str(tmp_path / "a"))
+    assert journal(r1)[-1]["voie"] == "prompt" and journal(r2)[-1]["voie"] == "sous_session"
+
+
+def test_prompt_journalise_preparee_et_jamais_lancee(tmp_path, capsys):
+    racine = monde(tmp_path)
+    assert aller(racine, ID, argv=["--prompt"]) == 0
+    evenements = journal(racine)
+    assert [e["evenement"] for e in evenements] == ["preparee"]
+    assert evenements[0]["mission"] == ID and "rien n'est lancé" in evenements[0]["note"]
+    assert "Contrôles NON garantis" in capsys.readouterr().out
+    # une mission seulement préparée ne bloque pas le projet et n'est pas « en cours »
+    assert lm.mission_en_cours(evenements, ID, MAINT) is None
+
+
+def test_prompt_n_appelle_aucun_executable_ni_ne_cherche_le_moteur(tmp_path):
+    racine = monde(tmp_path)
+    faux = FauxExecuteur()
+    assert aller(racine, ID, argv=["--prompt"], executer=faux, trouver=lambda n: None) == 0
+    assert faux.appels == []
+
+
+def test_prompt_dry_run_n_ecrit_ni_fichier_ni_journal(tmp_path, capsys):
+    racine = monde(tmp_path)
+    assert aller(racine, ID, argv=["--prompt", "--dry-run"]) == 0
+    assert not (racine / "briefs" / f"{ID}-prompt.md").exists() and journal(racine) == []
+    assert "rien n'est écrit" in capsys.readouterr().out
+
+
+def test_prompt_precedent_archive_jamais_ecrase(tmp_path):
+    racine = monde(tmp_path)
+    (racine / "briefs" / f"{ID}-prompt.md").write_text("ancien", encoding="utf-8")
+    assert aller(racine, ID, argv=["--prompt"]) == 0
+    archives = list((racine / "briefs").glob(f"{ID}-prompt.2*.md"))
+    assert len(archives) == 1 and archives[0].read_text(encoding="utf-8") == "ancien"
+    assert "ancien" not in lire_prompt(racine)
+
+
+def test_prompt_plusieurs_missions(tmp_path):
+    racine = monde(tmp_path)
+    (racine / "briefs" / f"{ID2}.md").write_text(brief(projet="autre"), encoding="utf-8")
+    assert aller(racine, ID, ID2, argv=["--prompt"]) == 0
+    assert [e["mission"] for e in journal(racine)] == [ID, ID2]
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [["--prompt", "--parallele"], ["--prompt", "--moteur", "copilot"], ["--voie", "sous_session"]],
+)
+def test_prompt_options_incompatibles_refusees(tmp_path, argv, capsys):
+    racine = monde(tmp_path)
+    assert aller(racine, ID, argv=argv) == 2
+    assert "REFUS" in capsys.readouterr().err and journal(racine) == []
+
+
+def test_prompt_memes_refus_que_le_lanceur_sur_le_brief(tmp_path, capsys):
+    racine = monde(tmp_path, texte=brief(projet="inconnu"))
+    assert aller(racine, ID, argv=["--prompt"]) == 2
+    assert "absent de config.json" in capsys.readouterr().err
+    assert not (racine / "briefs" / f"{ID}-prompt.md").exists() and journal(racine) == []
+    racine2 = monde(tmp_path / "2", texte=brief(execution="modèle opus · effort max · mode 2 · durée max 60 min"))
+    assert aller(racine2, ID, argv=["--prompt"]) == 2  # opus au-delà de high : refusé aussi en voie sans lanceur
+
+
+def test_prompt_meme_mission_deux_fois_refusee(tmp_path):
+    assert aller(monde(tmp_path), ID, ID, argv=["--prompt"]) == 2
+
+
+def test_lancement_cli_note_la_voie_cli_au_journal(tmp_path):
+    racine = monde(tmp_path)
+    assert aller(racine, ID) == 0
+    assert {e["voie"] for e in journal(racine)} == {"cli"}
+
+
+def test_aucune_bascule_de_voie_apres_un_refus_de_permission(tmp_path, capsys):
+    racine = monde(tmp_path)
+    refus = [{"tool_name": "Bash", "tool_input": {"command": "git push"}}]
+    faux = FauxExecuteur(sortie(is_error=True, result="permission refusée", refus=refus))
+    assert aller(racine, ID, executer=faux) == 1
+    assert len(faux.appels) == 1  # pas de relance
+    assert not (racine / "briefs" / f"{ID}-prompt.md").exists()  # aucun prompt de repli
+    assert [e["evenement"] for e in journal(racine)] == ["lancee", "echouee"]  # jamais « preparee » de repli
+
+
+def test_aucune_bascule_de_voie_apres_un_echec_du_moteur(tmp_path):
+    racine = monde(tmp_path)
+    faux = FauxExecuteur(lm.Sortie("", "boum", False, 1.0, 1))
+    assert aller(racine, ID, executer=faux, argv=["--moteur", "copilot"], aide=AIDE_RECENTE) == 1
+    assert len(faux.appels) == 1 and not (racine / "briefs" / f"{ID}-prompt.md").exists()
+    assert all(e["evenement"] != "preparee" for e in journal(racine))

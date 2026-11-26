@@ -72,6 +72,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import NamedTuple
 
+import capacites
 import commun
 import kanban
 from aide_copilot import (  # noqa: F401 — réexportés : tests et appelants les lisent ici
@@ -384,6 +385,7 @@ class Plan:
             effort=self.effort,
             mode=self.mode,
             moteur=self.moteur,
+            voie="cli",
         )
 
 
@@ -1104,6 +1106,89 @@ def ecrire_compte_rendu(ctx: Contexte, mission: str, contenu: str) -> Path:
     return cible
 
 
+# ---------- mode 2 par paliers : prompt autonome ----------
+VOIES_PROMPT = ("prompt", "sous_session")
+
+
+def construire_prompt_autonome(plan: Plan, voie: str) -> str:
+    """Texte autonome pour une voie sans lanceur : tout ce qu'il faut à une session ouverte à la main (`prompt`) ou
+    par la plateforme (`sous_session`), le même texte dans les deux cas. Il dit aussi ce que cette voie NE garantit
+    PAS : elle n'est jamais présentée comme équivalente au lanceur."""
+    non_garantis = capacites.controles_non_garantis(voie)
+    effort = f"effort `{plan.effort}` si ta plateforme permet de le régler (sinon ignore cette précision)"
+    lignes = [
+        f"# Mission {plan.mission} — {plan.carte}",
+        "",
+        f"Prompt autonome, voie « {voie} » ({capacites.LIBELLES_VOIES[voie]}). Ce texte contient tout ce qu'il faut : "
+        "le projet, le périmètre, les garde-fous, le critère de fin et le compte rendu attendu. Ne suppose rien d'autre.",
+        "",
+        "## Projet et contexte",
+        f"- Projet : {plan.projet}" + (f" · variante : {plan.variante}" if plan.variante else ""),
+        f"- Dossier de travail : {plan.cwd} (ouvre la session dans ce dossier)",
+        f"- Dépôt git : {plan.git_root or '(pas de dépôt suivi)'}",
+        f"- Dossiers en plus : {', '.join(plan.add_dirs) or '(aucun)'}",
+        "- Commandes de vérification habituelles de ce projet : " + ", ".join(plan.autorise) or "(aucune déclarée)",
+        "",
+        "## Recommandation de modèle et d'effort",
+        f"- Classe de modèle : `{plan.modele}` (registre/grille.md) ; {effort}.",
+        f"- Durée visée : {_nb(plan.duree_max_min)} min au plus. Aucun arrêt automatique dans cette voie : surveille-la.",
+        "",
+        "## Brief (périmètre, critère de fin, compte rendu)",
+        plan.brief.rstrip("\n"),
+        "",
+        "## Garde-fous communs",
+        PIED.replace("{jour}", plan_jour()).replace("{colonnes}", ", ".join(kanban.COLONNES)).strip(),
+        "",
+        "## Contrôles NON garantis dans cette voie",
+        "Aucun outil ne les applique ici : au moindre doute, arrête-toi et dis-le.",
+        *[f"- {c}" for c in non_garantis],
+        "",
+        "Si une permission est refusée ou qu'une étape échoue : arrête cette étape, explique-le dans le compte rendu et "
+        "ne contourne pas (pas de changement de voie ni d'outil de ta propre initiative).",
+        "",
+    ]
+    return "\n".join(lignes)
+
+
+def ecrire_prompt(ctx: Contexte, plan: Plan, voie: str) -> Path:
+    """`briefs/<id>-prompt.md` ; un prompt précédent est archivé (horodaté), jamais écrasé ; journal `preparee`."""
+    dossier = ctx.racine / "briefs"
+    dossier.mkdir(parents=True, exist_ok=True)
+    cible = dossier / f"{plan.mission}-prompt.md"
+    if cible.exists():
+        cible.replace(dossier / f"{plan.mission}-prompt.{ctx.maintenant().strftime('%Y%m%d-%H%M%S')}.md")
+    cible.write_text(construire_prompt_autonome(plan, voie), encoding="utf-8", newline="\n")
+    base = {**plan.base_journal(), "voie": voie}
+    ctx.ecrire_journal(
+        evenement="preparee",
+        **base,
+        note=f"prompt écrit dans briefs/{cible.name} ; {len(capacites.controles_non_garantis(voie))} contrôle(s) "
+        "non garanti(s) ; rien n'est lancé",
+    )
+    return cible
+
+
+def preparer_prompts(ids: list[str], voie: str, config: dict, ctx: Contexte, dry_run: bool) -> int:
+    """Écrit un prompt autonome par mission (ou l'annonce en `--dry-run`). Ne lance rien et ne vérifie ni verrou ni
+    journal : ces contrôles n'existent que dans la voie `cli`. Code 0, ou 2 sur refus."""
+    try:
+        plans = [preparer(m, ctx.racine, config, "claude") for m in ids]
+    except Refus as r:
+        print(f"REFUS : {r}", file=sys.stderr)
+        return 2
+    for p in plans:
+        if dry_run:
+            print(f"[dry-run] {p.mission} — {p.carte} : prompt autonome (voie {voie}), rien n'est écrit ni journalisé")
+            print("  contrôles non garantis : " + " ; ".join(capacites.controles_non_garantis(voie)))
+            continue
+        cible = ecrire_prompt(ctx, p, voie)
+        print(f"{p.mission} : prompt écrit dans briefs/{cible.name} (journal : preparee, rien n'est lancé)")
+        print("  Contrôles NON garantis dans cette voie :")
+        for c in capacites.controles_non_garantis(voie):
+            print(f"    - {c}")
+    return 0
+
+
 # ---------- affichage ----------
 def afficher_plan(plan: Plan, controles: list[str], ctx: Contexte) -> None:
     print(f"[dry-run] {plan.mission} — {plan.carte}")
@@ -1232,6 +1317,19 @@ def main(
         action="store_true",
         help="lance les missions en même temps (une seule par projet : deux missions du même projet = refus)",
     )
+    ap.add_argument(
+        "--prompt",
+        action="store_true",
+        help="n'exécute rien : écrit briefs/<id>-prompt.md, un prompt autonome pour une session ouverte à la main ou "
+        "par la plateforme (journal : preparee). Voie sans lanceur : voir docs/architecture.md, « Mode 2 par paliers »",
+    )
+    ap.add_argument(
+        "--voie",
+        choices=VOIES_PROMPT,
+        default="prompt",
+        help="avec --prompt : `prompt` (à copier dans une nouvelle session, défaut) ou `sous_session` (la plateforme "
+        "ouvre la session) ; même texte, la voie est notée au journal",
+    )
     a = ap.parse_args(argv)
 
     ctx = Contexte(racine=Path(racine))
@@ -1262,6 +1360,21 @@ def main(
         if valeur is not None:
             setattr(ctx, nom, valeur)
     moteur = a.moteur or config.get("moteur_par_defaut") or "claude"
+
+    if a.prompt:
+        if a.parallele or a.moteur:
+            print(
+                "REFUS : --prompt ne se combine ni avec --parallele ni avec --moteur (rien n'est lancé).",
+                file=sys.stderr,
+            )
+            return 2
+        if len(set(a.missions)) != len(a.missions):
+            print("REFUS : la même mission est citée deux fois.", file=sys.stderr)
+            return 2
+        return preparer_prompts(a.missions, a.voie, config, ctx, a.dry_run)
+    if a.voie != "prompt":
+        print("REFUS : --voie ne s'utilise qu'avec --prompt.", file=sys.stderr)
+        return 2
 
     try:
         if len(set(a.missions)) != len(a.missions):

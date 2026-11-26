@@ -136,15 +136,20 @@ polaris/
   max, le journal automatique, la liste d'outils, le relevé de consommation ni `donnees/STOP` : seule la voie `cli` les
   garantit, et aucune voie de repli ne lui est équivalente (tableau dans
   [docs/architecture.md](docs/architecture.md#mode-2-par-paliers)).
-- **Les skills dans l'application Copilot ne sont pas éprouvées** : elles figurent dans sa liste, leur exécution et le
-  menu `/` n'ont pas été vérifiés. `--allow-all-tools` n'a pas été testé non plus (priorité de `--deny-tool` inconnue) :
-  il reste désactivé et déconseillé.
+- **Les skills dans l'application Copilot : en partie observées.** Listées et exécutées par l'application (**observé**,
+  application 1.5.0) ; le menu `/` et la création initiale de `config.json` par `/configurer` sont **non testés**, comme
+  une mission complète en sous-session. `--allow-all-tools` est **non testé** (priorité de `--deny-tool` inconnue) : il
+  reste désactivé et déconseillé. Légende commune : [docs/copilot.md](docs/copilot.md) (documenté, observé, non testé).
+- **Fichier d'usage et refus de permission.** Le format du fichier d'usage de Copilot n'est pas garanti : le lanceur
+  n'en reprend que des champs connus et ne recopie jamais de JSON brut. La sortie de Copilot ne compte pas les refus de
+  permission : ils sont écrits « non relevés », jamais `0`.
 - **Pas de lanceur automatique sans CLI d'agent.** Sur un poste où `claude` et `copilot` ne sont pas autorisés, les
   commandes conversationnelles, le registre et la veille en lecture restent utilisables ; `lancer_mission.py` et `/go`
   non. Le mode 2 se remplace par une sous-session ouverte à la main dans l'application, avec le même brief (sans
   verrou, consommation relevée à la main). Cela n'est pas éprouvé : voir
   [docs/installation-restreinte.md](docs/installation-restreinte.md), qui donne l'essai à faire.
 - **Un seul Kanban fait autorité.** Orion est un GitHub Projects ; il n'y a pas de connecteur vers un autre système.
+  Le mode `manuel` n'en est pas un : Polaris ne lit ni n'écrit rien dans ton outil, il te dit quoi y faire.
   Ne crée pas un second tableau à côté d'un Kanban existant.
 - **Les garde-fous ne sont pas une barrière de sécurité.** La liste d'outils réduit les risques ; elle ne remplace
   ni le brief précis, ni la relecture du compte rendu et du diff.

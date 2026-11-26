@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import sys
 from datetime import date
 from pathlib import Path
 
@@ -136,7 +137,7 @@ def test_version_du_changelog_et_de_pyproject_concordent():
     pyproject = (RACINE / "pyproject.toml").read_text(encoding="utf-8")
     version = re.search(r'^version = "([^"]+)"', pyproject, re.M)[1]
     premiere = re.search(r"^## \[(\d+\.\d+\.\d+)\]", (RACINE / "CHANGELOG.md").read_text(encoding="utf-8"), re.M)[1]
-    assert version == premiere == "0.3.0"
+    assert version == premiere == "0.3.1"
 
 
 def test_plus_de_plafond_en_cours_dans_l_exemple_ni_les_registres():
@@ -357,3 +358,51 @@ def test_estimation_de_consommation_indisponible_est_ecrite_dans_go_lancer_et_la
         texte = " ".join((RACINE / chemin).read_text(encoding="utf-8").split())
         assert "estimation indisponible" in texte.lower(), chemin
         assert "n'invente aucun chiffre" in texte.lower() or "ne rien inventer" in texte.lower(), chemin
+
+
+def test_aucun_nombre_de_fichiers_generes_en_dur_dans_les_docs():
+    for chemin in ("docs/installation.md", "docs/installation-restreinte.md", "README.md"):
+        texte = (RACINE / chemin).read_text(encoding="utf-8")
+        assert not re.search(r"\d+\s+fichiers?\s+générés?", texte), chemin
+    assert "OK : N fichiers générés à jour" in (RACINE / "docs" / "installation.md").read_text(encoding="utf-8")
+
+
+def test_le_nombre_de_fichiers_generes_du_generateur_est_celui_du_message():
+    import generer_commandes as gc
+
+    n = len(gc.attendus(gc.charger_sources(RACINE / "commandes")))
+    sortie = subprocess.run(
+        [sys.executable, str(RACINE / "outils" / "generer_commandes.py"), "--verifier"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    ).stdout
+    assert f"OK : {n} fichiers générés à jour" in sortie
+
+
+def test_installation_recommande_configurer_et_orion_seulement_pour_github():
+    doc = " ".join((RACINE / "docs" / "installation.md").read_text(encoding="utf-8").split())
+    assert "Étape recommandée : l'accueil `/configurer`" in doc
+    assert "seulement si tu choisis GitHub Projects" in doc and "kanban.mode" in doc
+    assert "preferences.local.md" in doc and "ne modifie pas les registres suivis par git" in doc
+
+
+def test_la_doc_copilot_a_une_seule_legende_et_les_reclassements_de_la_recette():
+    doc = (RACINE / "docs" / "copilot.md").read_text(encoding="utf-8")
+    assert doc.count("| **documenté** |") == doc.count("| **observé** |") == doc.count("| **non testé** |") == 1
+    for attendu in (
+        "**Observé** (application 1.5.0) : chargé d'office",  # copilot-instructions.md
+        "sont listées et exécutées par l'application",
+        "menu `/`",
+        "(CLI 1.0.98)",
+        "l'équivalence avec `auto` n'est **pas établie**",
+        "est **non testée**",  # priorité deny / allow-all
+        "(**observé**). Préfère",  # enrobage .ps1
+    ):
+        assert attendu in doc, attendu
+    assert "non établi** dans l'application seule" not in doc
+
+
+def test_le_journal_distingue_moteur_lance_et_moteur_vise():
+    mission = (RACINE / "registre" / "mission.md").read_text(encoding="utf-8")
+    assert "`moteur_vise`" in mission and "**lancé**" in mission and "**visé**" in mission

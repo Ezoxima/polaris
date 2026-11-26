@@ -67,7 +67,8 @@ Une ligne JSON par événement.
 | `mission` | identifiant `m-AAAAMMJJ-NN-xxxx` |
 | `projet`, `carte`, `variante` | repères (`variante` peut être `null`) |
 | `modele`, `effort`, `mode` | le couple choisi et le mode 1, 2 ou 3 |
-| `moteur` | `claude` ou `copilot` |
+| `moteur` | `claude` ou `copilot` : le moteur **lancé** (lignes `lancee`, `terminee`, `echouee`, `arretee`) |
+| `moteur_vise` | ligne `preparee` seulement : le moteur **visé** (`--moteur`, sinon `moteur_par_defaut`), qui règle la liste d'outils du prompt ; aucun moteur n'est lancé dans cette voie, d'où un champ distinct de `moteur` |
 | `voie` | `cli` (lanceur), `prompt` ou `sous_session` (voies sans lanceur, événement `preparee`) |
 | `modele_reel` | Copilot seulement : `currentModel` du fichier d'usage, ou « non relevé » (jamais déduit) ; `modele` reste la classe demandée |
 | `session_id` | identifiant de la session, si la plateforme le donne |

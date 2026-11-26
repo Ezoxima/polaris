@@ -144,7 +144,8 @@ dans le récapitulatif ; elle n'est jamais choisie en silence.
 
 `--prompt` écrit `briefs/<id>-prompt.md` (projet, contexte, périmètre, garde-fous, critère de fin, compte rendu
 attendu, recommandation de modèle et d'effort, liste des contrôles non garantis) et note `preparee` au journal ; il ne
-lance rien.
+lance rien. Le moteur (`--moteur`, sinon `moteur_par_defaut`) ne sert qu'à choisir la liste d'outils du projet : il est noté
+`moteur_vise` au journal, car aucun moteur n'est lancé. `--dry-run` n'écrit rien et n'exige aucun CLI.
 
 Contrôles garantis, par voie (ce tableau est produit par `outils/capacites.py` ; un test le garde à l'identique) :
 

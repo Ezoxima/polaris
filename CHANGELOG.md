@@ -3,6 +3,41 @@
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versions selon
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.3.1] - 2026-11-26
+
+Corrections issues d'une recette de la 0.3.0 avec GitHub Copilot, et harmonisation des commandes et de la documentation
+avec les voies sans CLI et les modes de Kanban.
+
+### Corrigé
+
+- `--prompt` : le moteur n'était plus `claude` en dur ; il suit `--moteur`, sinon `moteur_par_defaut`. Comme aucun
+  moteur n'est lancé dans cette voie, la ligne `preparee` du journal porte `moteur_vise` (et non `moteur`) ; `--prompt`
+  accepte désormais `--moteur`.
+- Prompt autonome : la ligne « Commandes de vérification habituelles » affiche « (aucune déclarée) » quand la liste est
+  vide (la priorité des opérateurs rendait le `or` inopérant).
+- Aide de Copilot lue sur la version réellement lancée : d'abord `copilot --no-auto-update --help` ; si elle liste
+  l'option, la mission la passe ; sinon repli sur `copilot --help` et l'option n'est pas passée. Même règle pour
+  l'inventaire (`--version`). Le `--dry-run` dit quelle aide a été lue.
+- Fichier d'usage : liste blanche (`currentModel`, `totalPremiumRequestCost`, `totalNanoAiu`, `totalUserRequests`,
+  `totalApiDurationMs`, jetons, `codeChanges` numériques). Plus de JSON brut, même tronqué : les autres clés ne sont
+  que nommées, un fichier invalide est « illisible » avec le type de l'erreur, sans son contenu.
+- Refus de permission : « non relevé » (jamais `0`) quand la sortie du moteur ne permet pas de les compter (Copilot,
+  sortie illisible) ; le nombre est gardé quand il est lu (Claude).
+
+### Modifié
+
+- `/go` et `/lancer` : le dry-run dépend de la voie (`cli` ou `--prompt --voie … --dry-run`, sans exiger de CLI) ; le
+  récapitulatif annonce la voie, les contrôles absents et ce qui sera écrit, avant tout accord.
+- `/point`, `/quoi-faire`, `/note`, `/lancer`, `/go`, `/nouveau-projet` : lecture de `kanban.mode` (`github`, `manuel`,
+  `aucun`) avant toute lecture ou écriture d'Orion ; clé absente = `github`, annoncé. Le mode `manuel` n'est pas un
+  connecteur.
+- Première mission sans estimation de consommation possible : « estimation indisponible » (unité de la plateforme si
+  connue), accord demandé quand même, aucun chiffre inventé (`/go`, `/lancer`, `registre/grille.md`).
+- Documentation : plus de nombre de fichiers générés en dur ; `/configurer` est l'étape d'installation recommandée,
+  Orion ne se crée que si GitHub Projects est choisi, la personnalisation passe par `registre/*.local.md` ; une légende
+  unique (documenté, observé, non testé) dans `docs/copilot.md`, avec les mentions reclassées d'après la recette ;
+  « Limites assumées » du README mise à jour.
+
 ## [0.3.0] - 2026-11-26
 
 Deuxième lot pour adapter Polaris à des environnements variés : savoir ce qui est disponible, régler Polaris en

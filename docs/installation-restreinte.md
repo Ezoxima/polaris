@@ -121,8 +121,10 @@ Honnêteté : le fonctionnement des commandes de Polaris dans l'application seul
 qu'un.
 
 - Si c'est ton Kanban existant : **ne crée pas un second tableau**, ne lance pas `kanban_init.py`, ne migre et ne
-  synchronise rien. Les commandes qui lisent ou écrivent Orion (`/point`, `/quoi-faire`, `/lancer`, `/note`) restent
-  limitées ou différées ; un connecteur vers un autre système n'existe pas (voir la feuille de route).
+  synchronise rien. Règle `kanban.mode` à `manuel` dans `config.json` (`/configurer kanban`) : les commandes qui
+  citent Orion (`/point`, `/quoi-faire`, `/lancer`, `/note`, `/nouveau-projet`) ne lisent ni n'écrivent rien, et te disent quoi
+  faire dans ton outil. Ce n'est **pas un connecteur** : aucun lien avec ton outil n'existe (voir la feuille de route).
+  `aucun` saute la partie cartes.
 - Si c'est Orion (GitHub Projects) : seulement alors, `python outils/kanban_init.py --dry-run`, puis la création
   (étape 7). L'outil refuse un `config.json` invalide au lieu de le remplacer, et annonce s'il part de l'exemple.
 

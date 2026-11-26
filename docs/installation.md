@@ -11,10 +11,10 @@ Les outils n'utilisent que la bibliothèque standard de Python : il n'y a rien �
 |---|---|---|
 | Python | 3.11 ou plus | les outils (`outils/*.py`) |
 | git | récent | cloner, et les commits locaux des missions |
-| GitHub CLI (`gh`) | récent, connecté | le Kanban Orion (`gh auth status`) |
+| GitHub CLI (`gh`) | récent, connecté | le Kanban Orion, **seulement si tu choisis GitHub Projects** (`gh auth status`) |
 | Claude Code **ou** Copilot CLI | — | les sessions de mission ; voir [copilot.md](copilot.md) pour Copilot |
 
-Le droit `project` de GitHub est nécessaire pour Orion : `gh auth refresh -s project`.
+Le droit `project` de GitHub n'est nécessaire que pour Orion : `gh auth refresh -s project`.
 Pour développer ce dépôt lui-même : `pip install -r requirements-dev.txt` (pytest et ruff, versions fixées).
 
 ## 2. Cloner et vérifier
@@ -25,7 +25,8 @@ cd polaris
 python outils/generer_commandes.py --verifier
 ```
 
-La dernière commande doit répondre `OK : 16 fichiers générés à jour`. Si tu as installé `pytest`, `python -m pytest`
+La dernière commande doit répondre `OK : N fichiers générés à jour` (N est le nombre de fichiers que le générateur
+produit ; il change quand on ajoute une commande, il n'est donc pas figé ici). Si tu as installé `pytest`, `python -m pytest`
 lance les tests (aucun n'appelle `claude`, `copilot` ni `gh`).
 
 Ton instance de Polaris contient ton registre, tes briefs et ta mémoire : garde-la **privée** (un dépôt privé ou un
@@ -39,7 +40,7 @@ du générique : après une mise à jour de Polaris, compare-la à la nouvelle v
 
 ## 3. Configurer
 
-**Recommandé : l'accueil `/configurer`.** Ouvre une session dans le dossier de Polaris et lance `/configurer` : une
+**Étape recommandée : l'accueil `/configurer`.** Ouvre une session dans le dossier de Polaris et lance `/configurer` : une
 question à la fois, il inventorie ce qui est disponible sur ton poste (`python outils/capacites.py`), déclare tes
 projets, règle le Kanban (GitHub Projects, autre outil en mode manuel, ou aucun), choisit la voie de lancement et la
 stratégie de modèle, et n'écrit un fichier qu'après t'avoir montré le diff. `/configurer modeles` (ou `projets`,
@@ -88,7 +89,10 @@ renvoie à une clé de `config.json` ; le lanceur refuse en nommant la clé si e
 Application seule, sans CLI : cette étape ne s'applique pas ; voir
 [copilot.md, « Application seule »](copilot.md#application-seule-sans-cli).
 
-## 4. Créer Orion, le Kanban
+## 4. Créer Orion, le Kanban (seulement si tu choisis GitHub Projects)
+
+Si `/configurer` t'a fait choisir un autre outil (mode `manuel`) ou aucun Kanban (`aucun`), saute cette étape : ne lance
+pas `kanban_init.py`, il écrit sur GitHub. Le choix se lit dans `kanban.mode` de `config.json` ; clé absente = `github`.
 
 ```powershell
 python outils/kanban_init.py --dry-run
@@ -155,17 +159,19 @@ carte : `/point` propose, tu valides.
 ## 8. Personnaliser Polaris
 
 Polaris se règle sans entretien : ses choix par défaut sont ceux de son auteur, regroupés dans des fichiers lisibles.
-Garde-les ou modifie une ligne.
+Garde-les, ou personnalise **par une copie `registre/*.local.md`** (ignorée par git, elle remplace entièrement le
+générique) : ne modifie pas les registres suivis par git, tes changements entreraient en conflit à la prochaine mise à
+jour.
 
 | Quoi | Où | Comment |
 |---|---|---|
-| Dialogue, quota, Kanban, fin de session, Nova | `registre/preferences.md` | Chaque préférence a une valeur par défaut et une ligne « Pour changer » : réécris la ligne. |
+| Dialogue, quota, Kanban, fin de session, Nova | `registre/preferences.md` | Chaque préférence a une valeur par défaut et une ligne « Pour changer » : copie le fichier en `preferences.local.md` (qui le remplace entièrement) et réécris la ligne dans la copie. |
 | Modèle, effort, durée max selon le type de tâche | `registre/grille.md` | Copie-le en `grille.local.md` (qui le remplace entièrement) puis modifie le tableau ; le lanceur applique le plafond d'effort du modèle fort. |
 | Limites mécaniques (budgets, durée maximale, moteur) | `config.json`, clés `defauts` et `moteur_par_defaut` | Édite la valeur ; `preferences.md` renvoie à la clé sans la recopier. |
-| Projets | `registre/projets.md` et `config.json` (clé `projets`) | Une fiche et une entrée par projet (voir l'étape 5). |
+| Projets | `registre/projets.local.md` (copie de `projets.md`) et `config.json` (clé `projets`) | Une fiche et une entrée par projet (voir l'étape 5). |
 | Commandes (`/point`, `/lancer`…) | `commandes/` | Édite la source, puis `python outils/generer_commandes.py`. Ne modifie jamais `.claude/` ni `.github/skills/`. |
-| Colonnes et champs du Kanban | `outils/kanban_init.py` et `registre/kanban.md` | Change la liste dans l'outil avant de créer le tableau ; les recettes `gh` sont dans `kanban.md`. |
-| Interdits ajoutés | `registre/preferences.md`, section « Interdits ajoutés » | Écris une ligne par interdit (deux exemples y sont commentés). |
+| Colonnes et champs du Kanban | `outils/kanban_init.py`, et `registre/kanban.md` (copie `kanban.local.md`) | Change la liste dans l'outil avant de créer le tableau ; les recettes `gh` sont dans `kanban.md`. |
+| Interdits ajoutés | `registre/preferences.local.md`, section « Interdits ajoutés » | Écris une ligne par interdit dans la copie (deux exemples sont commentés dans le générique). |
 
 Une seule source de vérité par réglage : si une valeur est dans `config.json`, c'est là qu'on la change. Si tu as
 copié un registre en `.local.md`, c'est cette copie qu'on modifie (voir l'étape 2) ; `defauts.max_en_cours`, ancienne

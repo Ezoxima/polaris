@@ -451,24 +451,110 @@ def exige_allow_all_tools(sortie: Sortie) -> bool:
     return sortie.code != 0 and bool(MOTIF_ALLOW_ALL.search(f"{sortie.out}\n{sortie.err}"))
 
 
-def resumer_usage(chemin: Path) -> str:
-    """Résumé du fichier d'usage écrit par copilot, brut et tronqué (aucun champ supposé) ; le fichier est supprimé."""
+class Usage(NamedTuple):
+    """Ce qu'on sait du fichier d'usage : modèle réellement utilisé (None si non relevé) et résumé en une ligne."""
+
+    modele: str | None
+    resume: str
+
+
+def _nombre_fini(v: object) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def _brut_tronque(objet: object) -> str:
+    compact = " ".join(json.dumps(objet, ensure_ascii=False).split())
+    return compact[:LIMITE_RESUME_USAGE] + "…" if len(compact) > LIMITE_RESUME_USAGE else compact
+
+
+def lire_usage(chemin: Path) -> Usage:
+    """Lit le fichier d'usage écrit par copilot, puis le supprime.
+
+    Format observé sur une version du CLI, **non garanti** : les champs connus (`currentModel`,
+    `totalPremiumRequestCost`, `totalNanoAiu`, `tokenDetails`, `codeChanges`) sont repris s'ils sont présents et du bon
+    type, leur absence est tolérée et dite, un champ de type inattendu est signalé (jamais deviné), le reste est gardé
+    brut et tronqué. Le modèle n'est JAMAIS déduit : sans `currentModel` texte, `modele` vaut None."""
     try:
         brut = chemin.read_text(encoding="utf-8", errors="replace")
     except FileNotFoundError:
-        return "fichier d'usage non produit"
+        return Usage(None, "fichier d'usage non produit")
     except OSError as e:
-        return f"fichier d'usage illisible ({type(e).__name__})"
+        return Usage(None, f"fichier d'usage illisible ({type(e).__name__})")
     try:
         chemin.unlink()
     except OSError:
         pass
-    compact = " ".join(brut.split())
-    if not compact:
-        return "fichier d'usage vide"
-    if len(compact) > LIMITE_RESUME_USAGE:
-        compact = compact[:LIMITE_RESUME_USAGE] + "…"
-    return f"usage (brut, format non éprouvé) : {compact}"
+    if not brut.strip():
+        return Usage(None, "fichier d'usage vide")
+    try:
+        d = json.loads(brut)
+    except ValueError:
+        d = None
+    entete = "usage (format observé sur une version, non garanti) : "
+    if not isinstance(d, dict):
+        return Usage(
+            None, entete + "JSON invalide ou inattendu, brut : " + " ".join(brut.split())[:LIMITE_RESUME_USAGE]
+        )
+
+    morceaux, inattendus, restant = [], [], dict(d)
+    modele = restant.pop("currentModel", None)
+    if isinstance(modele, str) and modele.strip():
+        modele = modele.strip()
+        morceaux.append(f"modèle {modele}")
+    else:
+        if "currentModel" in d:
+            inattendus.append("currentModel")
+        modele = None
+    for cle, libelle in (("totalPremiumRequestCost", "coût premium"), ("totalNanoAiu", "nanoAIU")):
+        v = restant.pop(cle, None)
+        if _nombre_fini(v):
+            morceaux.append(f"{libelle} {v:g}")
+        elif cle in d:
+            inattendus.append(cle)
+    jetons = restant.pop("tokenDetails", None)
+    if isinstance(jetons, dict):
+        parts = []
+        for cle, libelle in (
+            ("input", "entrée"),
+            ("cache_read", "cache lu"),
+            ("cache_write", "cache écrit"),
+            ("output", "sortie"),
+        ):
+            n = (jetons.get(cle) or {}).get("tokenCount") if isinstance(jetons.get(cle), dict) else None
+            if _nombre_fini(n):
+                parts.append(f"{libelle} {n:g}")
+        if parts:
+            morceaux.append("jetons " + ", ".join(parts))
+    elif "tokenDetails" in d:
+        inattendus.append("tokenDetails")
+    code = restant.pop("codeChanges", None)
+    if isinstance(code, dict):
+        parts = [
+            f"{signe}{code[cle]:g}"
+            for cle, signe in (("linesAdded", "+"), ("linesRemoved", "-"))
+            if _nombre_fini(code.get(cle))
+        ]
+        if _nombre_fini(code.get("filesModifiedCount")):
+            parts.append(f"{code['filesModifiedCount']:g} fichier(s)")
+        if parts:
+            morceaux.append("code " + " ".join(parts))
+    elif "codeChanges" in d:
+        inattendus.append("codeChanges")
+
+    if not morceaux:
+        morceaux.append("aucun champ connu relevé")
+    if modele is None:
+        morceaux.append(f"modèle {MODELE_NON_RELEVE}")
+    if inattendus:
+        morceaux.append("type inattendu : " + ", ".join(inattendus))
+    if restant:
+        morceaux.append("reste brut : " + _brut_tronque(restant))
+    return Usage(modele, entete + " ; ".join(morceaux))
+
+
+def resumer_usage(chemin: Path) -> str:
+    """Résumé d'une ligne du fichier d'usage (voir `lire_usage`) ; le fichier est supprimé."""
+    return lire_usage(chemin).resume
 
 
 def preparer_copilot(plan: Plan, config: dict, racine: Path, aide: AideCopilot) -> None:
@@ -964,14 +1050,17 @@ def executer_mission(plan: Plan, ctx: Contexte) -> str:
     )
     if essais and evenement == "echouee":
         note += f"; {essais} reprise(s) sur limite d'usage"
-    usage = resumer_usage(Path(plan.fichier_usage)) if plan.fichier_usage else ""
+    lu = lire_usage(Path(plan.fichier_usage)) if plan.fichier_usage else Usage(None, "")
+    usage = lu.resume
     if usage:
         note += "; " + usage
+    # modèle réellement utilisé : champ dédié (interrogeable), distinct de `modele` (la classe demandée au brief)
+    reel = {"modele_reel": lu.modele or MODELE_NON_RELEVE} if plan.moteur == "copilot" else {}
     exige_tous = plan.moteur == "copilot" and not plan.tous_outils and exige_allow_all_tools(sortie)
     if exige_tous:
         note += "; copilot réclame --allow-all-tools (non ajouté, voir le compte rendu)"
         ctx.dire("copilot : " + MESSAGE_ALLOW_ALL, erreur=True)
-    ctx.ecrire_journal(evenement=evenement, **base, session_id=d.get("session_id"), note=note)
+    ctx.ecrire_journal(evenement=evenement, **base, **reel, session_id=d.get("session_id"), note=note)
 
     entete = [
         f"# Compte rendu {plan.mission} — {plan.carte}",
@@ -981,6 +1070,8 @@ def executer_mission(plan: Plan, ctx: Contexte) -> str:
     ]
     for r in refus[:10]:
         entete.append(f"  - {r.get('tool_name')} : {json.dumps(r.get('tool_input'), ensure_ascii=False)[:200]}")
+    if plan.moteur == "copilot":
+        entete.append(f"Modèle réellement utilisé : {lu.modele or MODELE_NON_RELEVE}")
     if usage:
         entete.append(f"Consommation Copilot : {usage}")
     if exige_tous:

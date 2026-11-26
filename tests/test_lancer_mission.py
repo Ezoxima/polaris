@@ -540,19 +540,128 @@ def test_mission_copilot_qui_reclame_allow_all_tools_s_arrete_sans_relance(tmp_p
     assert "réclame --allow-all-tools" in journal(racine)[-1]["note"]
 
 
+# Fichiers d'usage FICTIFS (format observé sur une version du CLI, non garanti).
+USAGE_COMPLET = {
+    "currentModel": "modele-x",
+    "totalPremiumRequestCost": 1.5,
+    "totalUserRequests": 2,
+    "totalNanoAiu": 123456,
+    "aiCreditsStatus": "ok",
+    "tokenDetails": {
+        "input": {"tokenCount": 1000},
+        "cache_read": {"tokenCount": 400},
+        "cache_write": {"tokenCount": 0},
+        "output": {"tokenCount": 250},
+    },
+    "codeChanges": {"linesAdded": 12, "linesRemoved": 3, "filesModifiedCount": 2, "filesModified": ["a", "b"]},
+    "modelMetrics": {"modele-x": {"n": 1}},
+}
+
+
+def ecrire_usage(tmp_path, contenu):
+    f = tmp_path / "usage.json"
+    f.write_text(contenu if isinstance(contenu, str) else json.dumps(contenu), encoding="utf-8")
+    return f
+
+
+def test_usage_complet_champs_connus_et_reste_brut(tmp_path):
+    f = ecrire_usage(tmp_path, USAGE_COMPLET)
+    u = lm.lire_usage(f)
+    assert u.modele == "modele-x" and not f.exists()
+    for attendu in (
+        "non garanti",
+        "modèle modele-x",
+        "coût premium 1.5",
+        "nanoAIU 123456",
+        "jetons entrée 1000, cache lu 400, cache écrit 0, sortie 250",
+        "code +12 -3 2 fichier(s)",
+        "reste brut :",
+        "aiCreditsStatus",
+        "modelMetrics",
+    ):
+        assert attendu in u.resume, attendu
+    assert "currentModel" not in u.resume.split("reste brut :")[1]  # les champs connus ne sont pas répétés
+
+
+def test_usage_partiel_tolere_les_absences_sans_inventer_le_modele(tmp_path):
+    u = lm.lire_usage(ecrire_usage(tmp_path, {"totalNanoAiu": 9}))
+    assert u.modele is None
+    assert "nanoAIU 9" in u.resume and "modèle non relevé" in u.resume and "coût premium" not in u.resume
+
+
+def test_usage_sans_aucun_champ_connu_garde_le_brut_tronque(tmp_path):
+    u = lm.lire_usage(ecrire_usage(tmp_path, {"x": 1, "y": "z" * 600}))
+    assert "aucun champ connu relevé" in u.resume and "modèle non relevé" in u.resume
+    assert u.resume.endswith("…") and len(u.resume) < 700
+
+
+@pytest.mark.parametrize("contenu", ["pas du json {", "[1, 2]", '"texte"', "42"])
+def test_usage_invalide_ou_inattendu_est_dit_avec_le_brut(tmp_path, contenu):
+    u = lm.lire_usage(ecrire_usage(tmp_path, contenu))
+    assert u.modele is None and "JSON invalide ou inattendu" in u.resume and contenu in u.resume
+
+
+def test_usage_champ_de_type_inattendu_signale_et_ne_donne_pas_de_modele(tmp_path):
+    f = ecrire_usage(tmp_path, {"currentModel": 5, "totalNanoAiu": "beaucoup", "codeChanges": [1], "tokenDetails": 3})
+    u = lm.lire_usage(f)
+    assert u.modele is None
+    assert "type inattendu : currentModel, totalNanoAiu, tokenDetails, codeChanges" in u.resume
+    assert lm.lire_usage(ecrire_usage(tmp_path, {"currentModel": "  "})).modele is None
+    assert lm.lire_usage(ecrire_usage(tmp_path, {"totalNanoAiu": True})).resume.count("type inattendu") == 1
+
+
+def test_usage_absent_vide_ou_illisible(tmp_path):
+    assert lm.lire_usage(tmp_path / "absent.json") == lm.Usage(None, "fichier d'usage non produit")
+    assert lm.lire_usage(ecrire_usage(tmp_path, "  " + chr(10))).resume == "fichier d'usage vide"
+    assert "illisible" in lm.lire_usage(tmp_path).resume  # un dossier : erreur d'E/S, pas un fichier absent
+
+
 def test_fichier_d_usage_resume_dans_le_journal_et_le_compte_rendu(tmp_path):
     racine = monde(tmp_path)
     cible = racine / "donnees" / f"usage-{ID}.json"
 
     def effet(_n):
-        cible.write_text('{"x": 1,\n "y": "' + "z" * 600 + '"}', encoding="utf-8")
+        cible.write_text(json.dumps(USAGE_COMPLET), encoding="utf-8")
 
-    faux = FauxExecuteur(lm.Sortie("Fait.\n", "", False, 5.0, 0), effet=effet)
+    faux = FauxExecuteur(lm.Sortie("Fait.", "", False, 5.0, 0), effet=effet)
     assert aller(racine, ID, argv=["--moteur", "copilot"], executer=faux, aide=AIDE_RECENTE) == 0
-    note = journal(racine)[-1]["note"]
-    assert "usage (brut, format non éprouvé) : {" in note and note.endswith("…") and len(note) < 700
-    assert "Consommation Copilot" in compte_rendu(racine)
+    fin = journal(racine)[-1]
+    assert "usage (format observé sur une version, non garanti) : modèle modele-x" in fin["note"]
+    assert fin["modele_reel"] == "modele-x" and fin["modele"] == "sonnet"  # classe demandée ≠ modèle réel
+    cr = compte_rendu(racine)
+    assert "Consommation Copilot" in cr and "Modèle réellement utilisé : modele-x" in cr
     assert not cible.exists()
+
+
+def test_modele_reel_non_releve_sans_fichier_d_usage_ni_champ(tmp_path):
+    racine = monde(tmp_path)
+    faux = FauxExecuteur(lm.Sortie("Fait.", "", False, 5.0, 0))
+    assert aller(racine, ID, argv=["--moteur", "copilot"], executer=faux, aide=AIDE_RECENTE) == 0
+    assert journal(racine)[-1]["modele_reel"] == "non relevé"
+    assert "Modèle réellement utilisé : non relevé" in compte_rendu(racine)
+    racine2 = monde(tmp_path / "2")  # aide ancienne : pas de fichier d'usage demandé
+    assert (
+        aller(racine2, ID, argv=["--moteur", "copilot"], executer=FauxExecuteur(lm.Sortie("ok", "", False, 5, 0))) == 0
+    )
+    assert journal(racine2)[-1]["modele_reel"] == "non relevé"
+
+
+def test_claude_n_ecrit_pas_de_modele_reel(tmp_path):
+    racine = monde(tmp_path)
+    assert aller(racine, ID) == 0
+    assert "modele_reel" not in journal(racine)[-1]
+
+
+def test_modele_auto_de_bout_en_bout_journalise_le_modele_reel(tmp_path):
+    extra = {"copilot": {"modeles": {"sonnet": "auto"}}}
+    racine = monde(tmp_path, extra=extra)
+    cible = racine / "donnees" / f"usage-{ID}.json"
+    faux = FauxExecuteur(
+        lm.Sortie("Fait.", "", False, 5.0, 0), effet=lambda _n: cible.write_text('{"currentModel": "choisi"}', "utf-8")
+    )
+    assert aller(racine, ID, argv=["--moteur", "copilot"], executer=faux, aide=AIDE_AUTO + "") == 0
+    assert "--model=auto" in faux.appels[0]["commande"]
+    assert journal(racine)[-1]["modele_reel"] == "choisi"
 
 
 def test_fichier_d_usage_absent_est_signale_sans_invention(tmp_path):

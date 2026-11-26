@@ -3,6 +3,43 @@
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versions selon
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.3.0] - 2026-11-26
+
+Deuxième lot pour adapter Polaris à des environnements variés : savoir ce qui est disponible, régler Polaris en
+conversation, et lancer une mission par la meilleure voie disponible en sachant ce que cette voie garantit.
+
+### Ajouté
+
+- `outils/capacites.py` : inventaire local des capacités (`cli_claude`, `cli_copilot`, `gh`, `gh_auth`, `git`,
+  `python`, `sous_session`, `taches_planifiees`) en `disponible`, `indisponible` ou `non_teste`, avec date et note.
+  Seules la présence de l'exécutable et `--version` / `--help` locaux sont utilisés ; un échec de détection donne
+  `non_teste` avec sa cause, jamais `disponible` ; `gh_auth` reste `non_teste` ; un `copilot` résolu en script `.ps1`
+  est signalé sans être lancé. Affichage par défaut, `--ecrire` met à jour la seule clé `capacites` de `config.json`,
+  une capacité déclarée à la main (`--declarer`) n'est jamais écrasée ; `--voie` propose la voie de lancement.
+- Commande `/configurer` : accueil conversationnel (inventaire, projets, Kanban GitHub Projects, autre outil en mode
+  manuel ou aucun, voie préférée, stratégie de modèle), une question à la fois, écriture seulement après le diff et
+  l'accord, relançable par section.
+- Stratégie de modèle `auto` : `copilot.modeles.<classe>` accepte `"auto"`, transmis (`--model=auto`) seulement si
+  l'aide du CLI le documente, sinon refus clair ; une valeur vide reste refusée.
+- Journal : champ `modele_reel` (Copilot : `currentModel` du fichier d'usage, sinon « non relevé », jamais déduit),
+  champ `voie`, événement `preparee`.
+- Mode 2 par paliers : `lancer_mission.py --prompt <id> [--voie sous_session]` écrit un prompt autonome
+  (`briefs/<id>-prompt.md`) sans rien lancer ; tableau des contrôles garantis par voie dans `docs/architecture.md`.
+  `/go` et `/lancer` proposent la voie, l'affichent dans le récapitulatif et attendent l'accord ; après un refus de
+  permission ou un échec ils s'arrêtent et n'en changent pas.
+- `outils/aide_copilot.py` : lecture de l'aide de Copilot (fonctions pures), partagée par le lanceur et l'inventaire.
+
+### Modifié
+
+- Fichier d'usage de Copilot : les champs connus (`currentModel`, `totalPremiumRequestCost`, `totalNanoAiu`, jetons,
+  `codeChanges`) sont lus, l'absence est tolérée et dite, un type inattendu est signalé, le reste est gardé brut et
+  tronqué (format observé sur une version, non garanti).
+- Le lanceur transmet `--no-auto-update` à Copilot quand l'aide le liste, pour que la version lancée soit celle qui a
+  été vérifiée.
+- `docs/copilot.md`, `registre/grille.md`, `docs/installation*.md`, README : application Copilot (fichiers chargés,
+  skills listées mais non éprouvées), `--model auto`, enrobage `.ps1` en mode restreint, versions multiples,
+  `--allow-all-tools` non testé, limites des voies sans lanceur.
+
 ## [0.2.2] - 2026-11-25
 
 Premier lot pour adapter Polaris à d'autres environnements : registres personnels réellement pris en compte, grille

@@ -136,7 +136,7 @@ def test_version_du_changelog_et_de_pyproject_concordent():
     pyproject = (RACINE / "pyproject.toml").read_text(encoding="utf-8")
     version = re.search(r'^version = "([^"]+)"', pyproject, re.M)[1]
     premiere = re.search(r"^## \[(\d+\.\d+\.\d+)\]", (RACINE / "CHANGELOG.md").read_text(encoding="utf-8"), re.M)[1]
-    assert version == premiere == "0.2.2"
+    assert version == premiere == "0.3.0"
 
 
 def test_plus_de_plafond_en_cours_dans_l_exemple_ni_les_registres():
@@ -286,3 +286,36 @@ def test_go_et_lancer_proposent_la_voie_et_ne_basculent_jamais_seuls():
         )
         assert "python outils/capacites.py --voie" in texte and "--prompt" in texte, nom
         assert "jamais équivalente" in texte and "ne change jamais de voie" in texte, nom
+
+
+def test_le_tableau_des_controles_de_l_architecture_est_celui_de_capacites():
+    import capacites
+
+    doc = (RACINE / "docs" / "architecture.md").read_text(encoding="utf-8")
+    debut, fin = "<!-- debut tableau controles -->", "<!-- fin tableau controles -->"
+    assert doc.count(debut) == doc.count(fin) == 1
+    assert doc.split(debut)[1].split(fin)[0].strip() == capacites.tableau_controles()
+
+
+def test_auto_est_la_regle_de_la_grille_et_plus_une_promesse():
+    grille = (RACINE / "registre" / "grille.md").read_text(encoding="utf-8")
+    assert "lot suivant" not in grille and "Stratégie `auto`" in grille and "currentModel" in grille
+    doc = (RACINE / "docs" / "copilot.md").read_text(encoding="utf-8")
+    assert "--model=auto" in doc and "non relevé" in doc and "--no-auto-update" in doc and "SetShouldExit" in doc
+
+
+def test_l_accueil_configurer_est_l_etape_recommandee_des_guides_d_installation():
+    assert "/configurer" in (RACINE / "docs" / "installation.md").read_text(encoding="utf-8")
+    assert "capacites.py" in (RACINE / "docs" / "installation-restreinte.md").read_text(encoding="utf-8")
+
+
+def test_le_readme_assume_les_limites_des_voies_sans_lanceur():
+    readme = (RACINE / "README.md").read_text(encoding="utf-8")
+    limites = readme.split("## Limites assumées")[1].split("## Feuille de route")[0]
+    assert "Sous-session et prompt" in limites and "skills dans l'application Copilot" in limites
+    assert "--allow-all-tools" in limites and "/parametrage" not in readme
+
+
+def test_l_exemple_de_config_declare_la_voie_preferee_et_les_capacites():
+    cfg = json.loads((RACINE / "config.exemple.json").read_text(encoding="utf-8"))
+    assert cfg["voie_preferee"] == "cli" and cfg["capacites"] == {} and cfg["kanban"]["mode"] == "github"

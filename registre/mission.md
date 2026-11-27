@@ -59,8 +59,15 @@ Le lanceur écrit le compte rendu dans `briefs/<id>-compte-rendu.md`, précédé
 refus de permission, commits créés, état de l'arbre git). Un compte rendu existant est archivé, jamais écrasé.
 
 Voies sans lanceur (`prompt`, `sous_session`) : l'utilisateur enregistre lui-même le compte rendu et la fin de mission avec
-`python outils/lancer_mission.py <id> --terminer --compte-rendu <fichier> --voie prompt|sous_session` (aucun moteur
-lancé, aucun contrôle du lanceur ; la ligne `terminee` porte la voie et `moteur_vise`).
+`python outils/lancer_mission.py <id> --terminer --compte-rendu <fichier> --voie prompt|sous_session --moteur <claude|copilot> --issue reussie|partielle|echec` (aucun moteur
+lancé, aucun contrôle du lanceur). L'issue est déclarée par l'utilisateur, jamais déduite : `reussie` écrit `terminee`,
+`partielle` et `echec` écrivent `echouee` (la veille et `mission_en_cours` les lisent donc déjà), et le champ `issue`
+est toujours noté. La ligne porte la voie, `moteur_vise` et `moteur_source`. Refus : `reussie` quand le compte rendu
+contient un marqueur d'échec (« non terminé », « bloqué », « échec », « inachevé »…, sans casse ni accents ;
+`--confirmer-reussite` pour maintenir) ; mission déjà finalisée (date, issue, voie citées ; `--remplacer` ajoute une
+ligne de correction avec `correction: true` et `remplace`, le journal n'est jamais réécrit). Avertissements sans blocage :
+mission sans `preparee` ni `lancee` (inconnue), moteur différent de celui de la préparation, compte rendu déjà présent
+(archivé, jamais effacé). `--dry-run` montre l'événement, l'issue, le moteur et les marqueurs trouvés.
 
 ## Journal : `donnees/missions.jsonl`
 
@@ -74,7 +81,8 @@ Une ligne JSON par événement.
 | `projet`, `carte`, `variante` | repères (`variante` peut être `null`) |
 | `modele`, `effort`, `mode` | le couple choisi et le mode 1, 2 ou 3 |
 | `moteur` | `claude` ou `copilot` : le moteur **lancé** (lignes `lancee`, `terminee`, `echouee`, `arretee`) |
-| `moteur_vise` | lignes `preparee` et `terminee` des voies sans lanceur : le moteur **visé** (`--moteur`, sinon `moteur_par_defaut`, sinon `claude` par défaut ; la source est dite dans `note`), qui règle la liste d'outils du prompt ; aucun moteur n'est lancé dans cette voie, d'où un champ distinct de `moteur` |
+| `issue`, `moteur_source`, `correction`, `remplace` | fin à la main : issue déclarée (`reussie`, `partielle`, `echec`), source du moteur visé, et pour une correction (`--remplacer`) `correction: true` et l'horodatage `remplace` de la fin corrigée |
+| `moteur_vise` | lignes `preparee` et de fin (`terminee`, `echouee`) des voies sans lanceur : le moteur **visé** (`--moteur`, sinon `moteur_par_defaut`, sinon `claude` par défaut ; la source est dite dans `note`), qui règle la liste d'outils du prompt ; aucun moteur n'est lancé dans cette voie, d'où un champ distinct de `moteur` |
 | `voie` | `cli` (lanceur), `prompt` ou `sous_session` (voies sans lanceur, événement `preparee`) |
 | `modele_reel` | Copilot seulement : `currentModel` du fichier d'usage, ou « non relevé » (jamais déduit) ; `modele` reste la classe demandée |
 | `session_id` | identifiant de la session, si la plateforme le donne |

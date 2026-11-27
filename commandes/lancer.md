@@ -60,7 +60,8 @@ peux changer le couple choisi.
   `python outils/lancer_mission.py <id> --moteur <claude|copilot>` ; autre voie, la même commande `--prompt` sans
   `--dry-run`. Jamais d'option qui contourne les permissions.
 - Le lanceur écrit `lancee` puis `terminee`, `echouee` ou `arretee` au journal et le compte rendu dans
-  `briefs/<id>-compte-rendu.md`. Il ne déplace aucune carte : fais-le à la fin.
+  `briefs/<id>-compte-rendu.md`. Voies `prompt` / `sous_session` : à la fin, `--terminer --compte-rendu <fichier>
+  --voie <voie> --moteur <moteur> --issue reussie|partielle|echec` (voir `registre/mission.md`). Il ne déplace aucune carte : fais-le à la fin.
 - À la fin, **ne crois pas le compte rendu** : relance les tests et le lint du projet, relis `git status`, `git log`
   et `git diff --stat` (aucune référence distante changée, aucun fichier hors périmètre).
 - Mets la carte à jour selon `kanban.mode` (voir section 1) : colonne, « prochaine étape », consommation mesurée,

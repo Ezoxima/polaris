@@ -50,7 +50,7 @@ et note le résultat ici.
 
 **Mode 2 sans CLI.** Le lanceur appelle une CLI. Sans elle, `python outils/lancer_mission.py --prompt <id>` écrit un
 prompt autonome (`briefs/<id>-prompt.md`) que tu colles dans une nouvelle session ; l'application sait aussi créer une
-sous-session avec ce prompt (**observé** : le prompt a été reçu par une vraie sous-session ; une mission complète en sous-session sur un projet fictif est **observée** : réussie, compte rendu et ligne `terminee` saisis à la main, sans aucun contrôle du lanceur), mais **elle ne garantit aucun des contrôles du
+sous-session avec ce prompt (**observé** : le prompt a été reçu par une vraie sous-session ; une mission complète en sous-session sur un projet fictif est **observée** : réussie, compte rendu et ligne `terminee` saisis à la main, sans aucun contrôle du lanceur ; la consultation des sessions Copilot du projet par une sous-session, avec l'accord de l'utilisateur, est **observée** : c'est une photo de leur état à un instant donné, ni un verrou ni une détection du travail fait hors Copilot ; le verrou par projet reste propre à la voie `cli`), mais **elle ne garantit aucun des contrôles du
 lanceur** : voir [architecture.md, « Mode 2 par paliers »](architecture.md#mode-2-par-paliers) et
 [installation-restreinte.md](installation-restreinte.md#4-sans-cli-dagent-lapplication-seulement).
 

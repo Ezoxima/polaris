@@ -151,9 +151,12 @@ et n'exige aucun CLI.
 
 **Finaliser à la main.** Ces voies n'ont pas de lanceur pour recueillir le compte rendu. Le prompt le dit à la fin
 (« À faire à la main ») : l'utilisateur sauvegarde le dernier message de la session dans un fichier, puis lance
-`python outils/lancer_mission.py <id> --terminer --compte-rendu <fichier> --voie prompt|sous_session`. Cette commande
-ne lance aucun moteur : elle copie le texte dans `briefs/<id>-compte-rendu.md` (un précédent est archivé) et écrit la
-ligne `terminee` (avec la voie) au journal. Le pied du prompt dépend du projet : sans dépôt git, pas de règle de
+`python outils/lancer_mission.py <id> --terminer --compte-rendu <fichier> --voie prompt|sous_session --moteur <moteur> --issue reussie|partielle|echec`.
+Cette commande ne lance aucun moteur : elle copie le texte dans `briefs/<id>-compte-rendu.md` (un précédent est
+annoncé puis archivé) et écrit la ligne de fin au journal, avec la voie, le moteur visé et l'issue que tu déclares
+(`reussie` → `terminee`, `partielle` et `echec` → `echouee`). Elle refuse `reussie` si le compte rendu parle d'échec
+(`--confirmer-reussite`), refuse une mission déjà finalisée (`--remplacer` ajoute une ligne de correction, le journal
+n'est jamais réécrit) et avertit d'une mission inconnue ou d'un moteur différent de celui de la préparation. Le pied du prompt dépend du projet : sans dépôt git, pas de règle de
 commit (preuves = tests et fichiers modifiés) ; la section « Carte » n'existe qu'avec `kanban.mode` à `github`
 (`manuel` : section à reporter à la main, `aucun` : aucune section).
 

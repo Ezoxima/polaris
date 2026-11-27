@@ -151,7 +151,7 @@ def test_version_du_changelog_et_de_pyproject_concordent():
     pyproject = (RACINE / "pyproject.toml").read_text(encoding="utf-8")
     version = re.search(r'^version = "([^"]+)"', pyproject, re.M)[1]
     premiere = re.search(r"^## \[(\d+\.\d+\.\d+)\]", (RACINE / "CHANGELOG.md").read_text(encoding="utf-8"), re.M)[1]
-    assert version == premiere == "0.3.2"
+    assert version == premiere == "0.3.3"
 
 
 def test_plus_de_plafond_en_cours_dans_l_exemple_ni_les_registres():

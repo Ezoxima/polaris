@@ -49,7 +49,9 @@ sinon demande-la-moi) : ce sont les « avant » du journal. **Attends mon accord
 - `python outils/lancer_mission.py <id> [<id2> …] [--parallele] [--moteur …]`, en arrière-plan quand l'outil de la
   plateforme le permet. La sortie est préfixée par l'identifiant et se termine par une ligne « Bilan ». Le lanceur
   écrit `lancee` puis `terminee`, `echouee` ou `arretee` au journal, et le compte rendu dans
-  `briefs/<id>-compte-rendu.md`. Arrêt d'urgence : créer le fichier `donnees/STOP`.
+  `briefs/<id>-compte-rendu.md`. Voies `prompt` / `sous_session` : rien n'est écrit à la fin ; une fois le compte rendu
+  sauvegardé, `python outils/lancer_mission.py <id> --terminer --compte-rendu <fichier> --voie <voie> --moteur <moteur>
+  --issue reussie|partielle|echec` (essaie d'abord avec `--dry-run` ; l'issue est la tienne, jamais déduite). Arrêt d'urgence : créer le fichier `donnees/STOP`.
 - Les cartes ne bougent pas toutes seules : mets-les à jour à la fin, selon `kanban.mode` (voir section 5).
 
 ## 5. À la fin : toujours vérifier, ne pas croire le compte rendu

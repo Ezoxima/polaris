@@ -3,6 +3,28 @@
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versions selon
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.3.3] - 2026-11-27
+
+Trois défauts de `lancer_mission.py --terminer`, trouvés en recette de la 0.3.2.
+
+### Corrigé
+
+- Moteur : la ligne de fin porte le moteur demandé (`--moteur`, sinon config) et sa source (`moteur_source`), plus le
+  `claude` par défaut. Un moteur différent de celui de la préparation est signalé par un avertissement.
+- Faux succès : `--issue reussie|partielle|echec` est obligatoire et jamais déduite. `reussie` écrit `terminee`,
+  `partielle` et `echec` écrivent `echouee`, avec le champ `issue` ; la veille les lisait déjà. `reussie` est refusée
+  si le compte rendu contient un marqueur d'échec (`--confirmer-reussite` pour maintenir). Le dry-run montre l'issue et
+  les marqueurs.
+- Répétitions : une mission déjà finalisée est refusée (date, issue, voie) ; `--remplacer` ajoute une ligne de
+  correction sans réécrire le journal. Un compte rendu déjà présent est annoncé avant l'archivage, dry-run compris ;
+  une mission sans `preparee` ni `lancee` est signalée.
+
+### Documenté
+
+- `docs/copilot.md` : la consultation des sessions Copilot par une sous-session est une photo à un instant donné, ni un
+  verrou ni une détection du travail hors Copilot (observé, avec accord de l'utilisateur).
+- Le prompt autonome donne la commande de fin complète (`--moteur`, `--issue`).
+
 ## [0.3.2] - 2026-11-26
 
 Trois défauts trouvés en recette de la 0.3.1.

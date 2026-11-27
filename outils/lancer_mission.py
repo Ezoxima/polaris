@@ -68,6 +68,7 @@ import subprocess
 import sys
 import threading
 import time
+import unicodedata
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -1273,22 +1274,70 @@ def fin_a_la_main(plan: Plan, voie: str) -> str:
                 "",
                 "--- À faire à la main à la fin (par l'utilisateur, pas par toi) ---",
                 "Le lanceur n'a rien enregistré. Ton dernier message est le compte rendu : l'utilisateur le sauvegarde dans "
-                "un fichier, puis lance, depuis la racine de Polaris :",
-                f"    python outils/lancer_mission.py {plan.mission} --terminer --compte-rendu <fichier> --voie {voie}",
+                "un fichier, puis lance, depuis la racine de Polaris (il choisit lui-même l'issue réelle : reussie, "
+                "partielle ou echec ; il peut d'abord essayer avec --dry-run) :",
+                f"    python outils/lancer_mission.py {plan.mission} --terminer --compte-rendu <fichier> "
+                f"--voie {voie} --moteur {plan.moteur} --issue reussie|partielle|echec",
                 f"Cette commande ne lance aucun moteur : elle copie le texte sous briefs/{plan.mission}-compte-rendu.md et écrit "
-                "la ligne `terminee` (avec la voie) dans donnees/missions.jsonl.",
+                "la ligne de fin (`terminee` si reussie, `echouee` sinon, avec le champ `issue`) dans donnees/missions.jsonl. "
+                "Elle refuse une mission déjà finalisée (--remplacer ajoute une correction) et une issue `reussie` quand le "
+                "compte rendu parle d'échec ou de blocage (--confirmer-reussite).",
             ]
         )
         + "\n"
     )
 
 
-def terminer_a_la_main(mission: str, fichier: str, voie: str, config: dict, ctx: Contexte, dry_run: bool) -> int:
-    """Finalisation manuelle d'une mission des voies sans lanceur : enregistre le compte rendu et écrit `terminee`.
+ISSUES = ("reussie", "partielle", "echec")
+# Marqueurs d'échec évidents, cherchés sans casse ni accents (liste courte, volontairement prudente).
+MARQUEURS_ECHEC = re.compile(
+    r"\b(?:non\s+termin\w*|pas\s+termin\w*|inacheve\w*|bloque\w*|echec\w*|echoue\w*)", re.IGNORECASE
+)
 
-    Ne lance rien. Refuse un brief invalide ou un fichier absent ou vide. Code 0, ou 2 sur refus."""
+
+def _sans_accents(texte: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFD", texte) if unicodedata.category(c) != "Mn")
+
+
+def marqueurs_d_echec(texte: str) -> list[str]:
+    """Lignes du compte rendu qui disent l'échec ou l'inachèvement (tronquées) ; [] s'il n'y en a pas."""
+    return [ligne.strip()[:120] for ligne in texte.splitlines() if MARQUEURS_ECHEC.search(_sans_accents(ligne))]
+
+
+def _evenements_de_la_mission(ctx: Contexte, mission: str) -> list[dict]:
+    """Lignes du journal de cette mission ; un journal illisible refuse (jamais « journal vide » par défaut)."""
     try:
-        plan = preparer(mission, ctx.racine, config, commande=False)
+        journal = commun.lire_journal(ctx.journal)
+    except commun.ErreurJournal as e:
+        raise Refus(f"{e} Finalisation refusée : l'état de la mission est inconnu.") from None
+    return [e for e in journal if e.get("mission") == mission]
+
+
+def terminer_a_la_main(
+    mission: str,
+    fichier: str,
+    voie: str,
+    config: dict,
+    ctx: Contexte,
+    dry_run: bool,
+    moteur: str = "claude",
+    moteur_source: str = "",
+    issue: str | None = None,
+    confirmer_reussite: bool = False,
+    remplacer: bool = False,
+) -> int:
+    """Finalisation manuelle d'une mission des voies sans lanceur : enregistre le compte rendu et la ligne de fin.
+
+    Ne lance rien. L'issue est déclarée par l'utilisateur (obligatoire) : `reussie` écrit `terminee`, `partielle` et
+    `echec` écrivent `echouee` ; le champ `issue` est toujours présent. Refuse : brief invalide, fichier absent ou
+    vide, issue manquante, `reussie` contre un compte rendu qui parle d'échec (sauf `confirmer_reussite`), mission
+    déjà finalisée (sauf `remplacer` : une ligne de correction est ajoutée, le journal n'est jamais réécrit).
+    Avertit : mission inconnue du journal, moteur différent de celui de la préparation, compte rendu déjà présent
+    (archivé, jamais effacé). Code 0, ou 2 sur refus."""
+    try:
+        if issue not in ISSUES:
+            raise Refus(f"--issue est obligatoire avec --terminer : {', '.join(ISSUES)} (tu déclares l'issue réelle).")
+        plan = preparer(mission, ctx.racine, config, moteur, commande=False, moteur_source=moteur_source)
         source = Path(fichier)
         try:
             texte = source.read_text(encoding="utf-8")
@@ -1296,29 +1345,85 @@ def terminer_a_la_main(mission: str, fichier: str, voie: str, config: dict, ctx:
             raise Refus(f"compte rendu illisible ou absent : {source}.") from None
         if not texte.strip():
             raise Refus(f"compte rendu vide : {source}.")
+        marqueurs = marqueurs_d_echec(texte)
+        if issue == "reussie" and marqueurs and not confirmer_reussite:
+            raise Refus(
+                "issue `reussie` mais le compte rendu dit l'inverse : « "
+                + " » ; « ".join(marqueurs[:3])
+                + " ». Corrige l'issue (partielle ou echec), ou confirme avec --confirmer-reussite."
+            )
+        evenements = _evenements_de_la_mission(ctx, mission)
+        fins = [e for e in evenements if e.get("evenement") in FINS_MISSION]
+        if fins and not remplacer:
+            f = fins[-1]
+            raise Refus(
+                f"{mission} est déjà finalisée : `{f.get('evenement')}` le {f.get('ts', '?')} "
+                f"(issue : {f.get('issue', 'non notée')}, voie {f.get('voie', '?')}). Rien n'est écrit. "
+                "Pour la corriger, ajoute --remplacer : une ligne de correction est ajoutée, l'ancienne reste au journal."
+            )
+        if remplacer and not fins:
+            raise Refus(f"--remplacer : aucune fin n'existe au journal pour {mission} ; retire l'option.")
     except Refus as r:
         print(f"REFUS : {r}", file=sys.stderr)
         return 2
+
+    avertissements = []
+    preparees = [e for e in evenements if e.get("evenement") in ("preparee", "lancee")]
+    if not preparees:
+        avertissements.append(
+            f"{mission} n'a ni ligne `preparee` ni `lancee` au journal : finalisation d'une mission inconnue "
+            "(écrite quand même, la fin à la main ne lance rien)."
+        )
+    else:
+        autres = sorted({str(e.get("moteur_vise") or e.get("moteur")) for e in preparees} - {moteur, "None"})
+        if autres:
+            avertissements.append(
+                f"moteur demandé {moteur} (source : {moteur_source or 'non précisée'}) mais la mission a été préparée ou "
+                f"lancée avec {', '.join(autres)} : la ligne de fin porte {moteur}, vérifie que c'est voulu."
+            )
+    existant = ctx.racine / "briefs" / f"{mission}-compte-rendu.md"
+    if existant.exists():
+        avertissements.append(
+            f"briefs/{existant.name} existe déjà : il sera archivé sous briefs/{mission}-compte-rendu.<horodatage>.md "
+            "avant l'écriture (rien n'est effacé)."
+        )
+    evenement = "terminee" if issue == "reussie" else "echouee"
+    correction = bool(fins) and remplacer
+    for a in avertissements:
+        print(f"! {a}", file=sys.stderr)
     if dry_run:
         print(
             f"[dry-run] {mission} : copierait {source} vers briefs/{mission}-compte-rendu.md et écrirait la ligne "
-            f"`terminee` (voie {voie}) au journal ; rien n'est écrit ni lancé"
+            f"`{evenement}` (issue {issue}, voie {voie}, moteur visé {moteur}, source : {moteur_source or 'non précisée'})"
+            + (" avec correction de la fin existante" if correction else "")
+            + " au journal ; marqueurs d'échec trouvés : "
+            + (" | ".join(marqueurs[:3]) if marqueurs else "aucun")
+            + " ; rien n'est écrit ni lancé"
         )
         return 0
     en_tete = (
         f"# Compte rendu {mission} — {plan.carte}\n\n"
-        f"Finalisé à la main (voie {voie}) : aucun contrôle du lanceur.\n\n---\n\n"
+        f"Finalisé à la main (voie {voie}, issue déclarée : {issue}) : aucun contrôle du lanceur.\n\n---\n\n"
     )
     cible = ecrire_compte_rendu(ctx, mission, en_tete + texte.rstrip("\n") + "\n")
     base = {**plan.base_journal(), "voie": voie}
     base["moteur_vise"] = base.pop("moteur")
+    extra = {"correction": True, "remplace": fins[-1].get("ts")} if correction else {}
     ctx.ecrire_journal(
-        evenement="terminee",
+        evenement=evenement,
         **base,
-        note=f"finalisée à la main (voie {voie}) : compte rendu enregistré dans briefs/{cible.name} ; "
-        "aucun moteur lancé, aucun contrôle du lanceur",
+        moteur_source=moteur_source or "non précisée",
+        issue=issue,
+        **extra,
+        note=f"finalisée à la main (voie {voie}, issue {issue}"
+        + (", correction d'une fin existante" if correction else "")
+        + (", réussite confirmée malgré des marqueurs d'échec" if issue == "reussie" and marqueurs else "")
+        + f") : compte rendu enregistré dans briefs/{cible.name} ; aucun moteur lancé, aucun contrôle du lanceur",
     )
-    print(f"{mission} : terminee (voie {voie}) — compte rendu dans briefs/{cible.name}, ligne `terminee` au journal.")
+    print(
+        f"{mission} : {evenement} (issue {issue}, voie {voie}) — compte rendu dans briefs/{cible.name}, "
+        f"ligne `{evenement}` au journal" + (" (correction)." if correction else ".")
+    )
     return 0
 
 
@@ -1542,9 +1647,26 @@ def main(
         "--terminer",
         action="store_true",
         help="n'exécute rien : enregistre le compte rendu (--compte-rendu) d'une mission des voies sans lanceur et "
-        "écrit la ligne `terminee` au journal (avec --voie)",
+        "écrit la ligne de fin au journal (avec --voie, --moteur et --issue)",
     )
     ap.add_argument("--compte-rendu", metavar="FICHIER", help="avec --terminer : fichier contenant le compte rendu")
+    ap.add_argument(
+        "--issue",
+        choices=ISSUES,
+        help="avec --terminer (obligatoire) : issue réelle que tu déclares ; reussie écrit `terminee`, partielle et "
+        "echec écrivent `echouee`",
+    )
+    ap.add_argument(
+        "--confirmer-reussite",
+        action="store_true",
+        help="avec --terminer --issue reussie : maintient la réussite malgré des marqueurs d'échec dans le compte rendu",
+    )
+    ap.add_argument(
+        "--remplacer",
+        action="store_true",
+        help="avec --terminer : corrige une mission déjà finalisée en ajoutant une ligne de correction (le journal "
+        "n'est jamais réécrit)",
+    )
     a = ap.parse_args(argv)
 
     ctx = Contexte(racine=Path(racine))
@@ -1583,9 +1705,24 @@ def main(
                 file=sys.stderr,
             )
             return 2
-        return terminer_a_la_main(a.missions[0], a.compte_rendu, a.voie, config, ctx, a.dry_run)
-    if a.compte_rendu:
-        print("REFUS : --compte-rendu ne s'utilise qu'avec --terminer.", file=sys.stderr)
+        return terminer_a_la_main(
+            a.missions[0],
+            a.compte_rendu,
+            a.voie,
+            config,
+            ctx,
+            a.dry_run,
+            moteur,
+            source_moteur,
+            a.issue,
+            a.confirmer_reussite,
+            a.remplacer,
+        )
+    if a.compte_rendu or a.issue or a.confirmer_reussite or a.remplacer:
+        print(
+            "REFUS : --compte-rendu, --issue, --confirmer-reussite et --remplacer ne s'utilisent qu'avec --terminer.",
+            file=sys.stderr,
+        )
         return 2
     if a.prompt:
         if a.parallele:

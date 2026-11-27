@@ -1552,7 +1552,10 @@ def test_pied_du_prompt_autonome_selon_git_et_kanban(tmp_path, projet, avec_git,
     assert aller(racine, ID, argv=["--prompt", "--voie", voie]) == 0
     texte = lire_prompt(racine)
     _verifier_pied(texte, avec_git, mode)
-    assert "À faire à la main à la fin" in texte and f"--terminer --compte-rendu <fichier> --voie {voie}" in texte
+    assert (
+        "À faire à la main à la fin" in texte
+        and f"--terminer --compte-rendu <fichier> --voie {voie} --moteur claude --issue" in texte
+    )
 
 
 def test_voie_cli_ne_parle_pas_de_finalisation_a_la_main(tmp_path):
@@ -1566,6 +1569,9 @@ def test_mode_kanban_inconnu_retombe_sur_github(tmp_path):
 
 
 # ---------- 0.3.2 : finalisation à la main (--terminer) ----------
+TERM = ["--terminer", "--issue", "reussie", "--compte-rendu"]
+
+
 def _cr(tmp_path, texte="## Fait\nrien\n"):
     f = tmp_path / "cr.md"
     f.write_text(texte, encoding="utf-8")
@@ -1576,7 +1582,7 @@ def _cr(tmp_path, texte="## Fait\nrien\n"):
 def test_terminer_enregistre_le_compte_rendu_et_ecrit_terminee_avec_la_voie(tmp_path, voie):
     racine = monde(tmp_path)
     faux = FauxExecuteur()
-    code = aller(racine, ID, argv=["--terminer", "--compte-rendu", _cr(tmp_path), "--voie", voie], executer=faux)
+    code = aller(racine, ID, argv=[*TERM, _cr(tmp_path), "--voie", voie], executer=faux)
     assert code == 0 and faux.appels == []
     e = journal(racine)[-1]
     assert e["evenement"] == "terminee" and e["voie"] == voie and e["mission"] == ID
@@ -1589,7 +1595,7 @@ def test_terminer_enregistre_le_compte_rendu_et_ecrit_terminee_avec_la_voie(tmp_
 def test_terminer_archive_un_compte_rendu_precedent(tmp_path):
     racine = monde(tmp_path)
     (racine / "briefs" / f"{ID}-compte-rendu.md").write_text("ancien", encoding="utf-8")
-    assert aller(racine, ID, argv=["--terminer", "--compte-rendu", _cr(tmp_path)]) == 0
+    assert aller(racine, ID, argv=[*TERM, _cr(tmp_path)]) == 0
     assert len(list((racine / "briefs").glob(f"{ID}-compte-rendu.2*.md"))) == 1
 
 
@@ -1601,20 +1607,20 @@ def test_terminer_refus(tmp_path, capsys, fichier, argv):
     racine = monde(tmp_path)
     contenus = {"vide": "  \n", "ok": "## Fait\n"}
     chemin = str(tmp_path / "nulle-part.md") if fichier == "absent" else _cr(tmp_path, contenus[fichier])
-    assert aller(racine, ID, argv=["--terminer", "--compte-rendu", chemin, *argv]) == 2
+    assert aller(racine, ID, argv=[*TERM, chemin, *argv]) == 2
     assert "REFUS" in capsys.readouterr().err and journal(racine) == []
 
 
 def test_terminer_sans_fichier_ou_avec_plusieurs_missions_refuse(tmp_path):
     racine = monde(tmp_path)
     assert aller(racine, ID, argv=["--terminer"]) == 2
-    assert aller(racine, ID, ID2, argv=["--terminer", "--compte-rendu", _cr(tmp_path)]) == 2
+    assert aller(racine, ID, ID2, argv=[*TERM, _cr(tmp_path)]) == 2
     assert aller(racine, ID, argv=["--compte-rendu", _cr(tmp_path)]) == 2
 
 
 def test_terminer_dry_run_n_ecrit_rien(tmp_path, capsys):
     racine = monde(tmp_path)
-    assert aller(racine, ID, argv=["--terminer", "--compte-rendu", _cr(tmp_path), "--dry-run"]) == 0
+    assert aller(racine, ID, argv=[*TERM, _cr(tmp_path), "--dry-run"]) == 0
     assert journal(racine) == [] and not (racine / "briefs" / f"{ID}-compte-rendu.md").exists()
     assert "rien n'est écrit" in capsys.readouterr().out
 
@@ -1656,3 +1662,159 @@ def test_choisir_moteur_trois_sources():
     assert choisir(None, {"moteur_par_defaut": "copilot"}) == ("copilot", lm.commun.SOURCE_MOTEUR_CONFIG)
     assert choisir(None, {"moteur_par_defaut": " "}) == ("claude", lm.commun.SOURCE_MOTEUR_DEFAUT)
     assert choisir(None, {}) == ("claude", lm.commun.SOURCE_MOTEUR_DEFAUT)
+
+
+# ---------- 0.3.3 : --terminer fiable ----------
+def _fins(racine):
+    return [e for e in journal(racine) if e["evenement"] in ("terminee", "echouee", "arretee")]
+
+
+def test_terminer_transmet_le_moteur_et_sa_source_au_journal(tmp_path):
+    racine = monde(tmp_path, extra={"moteur_par_defaut": "copilot"})
+    assert aller(racine, ID, argv=[*TERM, _cr(tmp_path)]) == 0
+    e = journal(racine)[-1]
+    assert e["moteur_vise"] == "copilot" and e["moteur_source"].startswith("config.json")
+    racine2 = monde(tmp_path / "b", extra={"moteur_par_defaut": "copilot"})
+    assert aller(racine2, ID, argv=[*TERM, _cr(tmp_path), "--moteur", "claude"]) == 0
+    e = journal(racine2)[-1]
+    assert e["moteur_vise"] == "claude" and e["moteur_source"] == "option --moteur"
+
+
+def test_terminer_avertit_si_le_moteur_differe_de_la_preparation(tmp_path, capsys):
+    racine = monde(tmp_path, extra={"moteur_par_defaut": "copilot"})
+    assert aller(racine, ID, argv=["--prompt"]) == 0
+    capsys.readouterr()
+    assert aller(racine, ID, argv=[*TERM, _cr(tmp_path), "--moteur", "claude"]) == 0
+    err = capsys.readouterr().err
+    assert "préparée ou lancée avec copilot" in err or "lancée avec copilot" in err
+    assert "inconnue" not in err and journal(racine)[-1]["moteur_vise"] == "claude"
+
+
+def test_terminer_exige_l_issue(tmp_path, capsys):
+    racine = monde(tmp_path)
+    assert aller(racine, ID, argv=["--terminer", "--compte-rendu", _cr(tmp_path)]) == 2
+    assert "--issue est obligatoire" in capsys.readouterr().err and _fins(racine) == []
+
+
+@pytest.mark.parametrize("issue,evenement", [("reussie", "terminee"), ("partielle", "echouee"), ("echec", "echouee")])
+def test_terminer_issue_distingue_les_evenements(tmp_path, issue, evenement):
+    racine = monde(tmp_path)
+    assert aller(racine, ID, argv=["--terminer", "--issue", issue, "--compte-rendu", _cr(tmp_path)]) == 0
+    e = journal(racine)[-1]
+    assert e["evenement"] == evenement and e["issue"] == issue
+    assert (lm.mission_en_cours(journal(racine), ID, MAINT) is None) is True
+
+
+@pytest.mark.parametrize(
+    "texte",
+    ["Mission non terminée.\n", "Je suis BLOQUÉ sur X\n", "Un échec des tests\n", "travail inachevé\n"],
+)
+def test_terminer_refuse_reussie_contre_un_compte_rendu_d_echec(tmp_path, capsys, texte):
+    racine = monde(tmp_path)
+    assert aller(racine, ID, argv=[*TERM, _cr(tmp_path, texte)]) == 2
+    err = capsys.readouterr().err
+    assert "dit l'inverse" in err and texte.strip()[:10] in err and _fins(racine) == []
+    assert not (racine / "briefs" / f"{ID}-compte-rendu.md").exists()
+
+
+def test_terminer_reussie_confirmee_malgre_les_marqueurs(tmp_path):
+    racine = monde(tmp_path)
+    assert (
+        aller(racine, ID, argv=[*TERM, _cr(tmp_path, "Aucun blocage ; un échec corrigé.\n"), "--confirmer-reussite"])
+        == 0
+    )
+    e = journal(racine)[-1]
+    assert e["evenement"] == "terminee" and "confirmée" in e["note"]
+
+
+def test_terminer_n_infere_pas_la_reussite_dans_l_autre_sens(tmp_path):
+    racine = monde(tmp_path)
+    assert (
+        aller(
+            racine, ID, argv=["--terminer", "--issue", "echec", "--compte-rendu", _cr(tmp_path, "Tout est parfait.\n")]
+        )
+        == 0
+    )
+    assert journal(racine)[-1]["evenement"] == "echouee"
+
+
+def test_terminer_dry_run_montre_issue_et_marqueurs(tmp_path, capsys):
+    racine = monde(tmp_path)
+    cr = _cr(tmp_path, "Mission non terminée.\n")
+    assert aller(racine, ID, argv=["--terminer", "--issue", "partielle", "--compte-rendu", cr, "--dry-run"]) == 0
+    sortie_ = capsys.readouterr().out
+    assert "`echouee` (issue partielle" in sortie_ and "non terminée" in sortie_
+    assert journal(racine) == [] and not (racine / "briefs" / f"{ID}-compte-rendu.md").exists()
+
+
+def test_terminer_deux_fois_refuse_et_ne_change_rien(tmp_path, capsys):
+    racine = monde(tmp_path)
+    assert aller(racine, ID, argv=[*TERM, _cr(tmp_path)]) == 0
+    avant = (racine / "donnees" / "missions.jsonl").read_text(encoding="utf-8")
+    cr_avant = compte_rendu(racine)
+    capsys.readouterr()
+    assert aller(racine, ID, argv=[*TERM, _cr(tmp_path, "autre texte\n")]) == 2
+    err = capsys.readouterr().err
+    assert "déjà finalisée" in err and "terminee" in err and "issue : reussie" in err
+    assert (racine / "donnees" / "missions.jsonl").read_text(encoding="utf-8") == avant
+    assert compte_rendu(racine) == cr_avant
+    assert list((racine / "briefs").glob(f"{ID}-compte-rendu.2*.md")) == []
+
+
+def test_terminer_remplacer_ajoute_une_ligne_de_correction(tmp_path, capsys):
+    racine = monde(tmp_path)
+    assert aller(racine, ID, argv=[*TERM, _cr(tmp_path)]) == 0
+    premiere = journal(racine)[-1]
+    capsys.readouterr()
+    cr = _cr(tmp_path, "Corrigé : la mission est restée partielle.\n")
+    assert aller(racine, ID, argv=["--terminer", "--issue", "partielle", "--remplacer", "--compte-rendu", cr]) == 0
+    lignes = journal(racine)
+    assert len(lignes) == 2 and lignes[0] == premiere
+    assert lignes[1]["evenement"] == "echouee" and lignes[1]["correction"] is True
+    assert lignes[1]["remplace"] == premiere["ts"] and "correction" in lignes[1]["note"]
+    assert "(correction)" in capsys.readouterr().out
+    assert len(list((racine / "briefs").glob(f"{ID}-compte-rendu.2*.md"))) == 1
+
+
+def test_terminer_remplacer_sans_fin_existante_refuse(tmp_path, capsys):
+    racine = monde(tmp_path)
+    assert aller(racine, ID, argv=[*TERM, _cr(tmp_path), "--remplacer"]) == 2
+    assert "aucune fin" in capsys.readouterr().err and _fins(racine) == []
+
+
+def test_terminer_annonce_le_compte_rendu_existant_meme_en_dry_run(tmp_path, capsys):
+    racine = monde(tmp_path)
+    (racine / "briefs" / f"{ID}-compte-rendu.md").write_text("ancien", encoding="utf-8")
+    assert aller(racine, ID, argv=[*TERM, _cr(tmp_path), "--dry-run"]) == 0
+    err = capsys.readouterr().err
+    assert "existe déjà" in err and "archivé" in err
+    assert compte_rendu(racine) == "ancien"
+    assert aller(racine, ID, argv=[*TERM, _cr(tmp_path)]) == 0
+    assert "existe déjà" in capsys.readouterr().err
+    assert len(list((racine / "briefs").glob(f"{ID}-compte-rendu.2*.md"))) == 1
+
+
+def test_terminer_mission_inconnue_du_journal_avertit_sans_bloquer(tmp_path, capsys):
+    racine = monde(tmp_path)
+    assert aller(racine, ID, argv=[*TERM, _cr(tmp_path)]) == 0
+    assert "mission inconnue" in capsys.readouterr().err
+    racine2 = monde(tmp_path / "b")
+    assert aller(racine2, ID, argv=["--prompt"]) == 0
+    capsys.readouterr()
+    assert aller(racine2, ID, argv=[*TERM, _cr(tmp_path)]) == 0
+    assert "mission inconnue" not in capsys.readouterr().err
+
+
+def test_terminer_journal_illisible_refuse(tmp_path, capsys):
+    racine = monde(tmp_path)
+    j = racine / "donnees" / "missions.jsonl"
+    j.unlink()
+    j.mkdir()  # lecture impossible : OSError, pas « journal absent »
+    assert aller(racine, ID, argv=[*TERM, _cr(tmp_path)]) == 2
+    assert "illisible" in capsys.readouterr().err
+
+
+def test_options_de_finalisation_hors_terminer_refusent(tmp_path):
+    racine = monde(tmp_path)
+    assert aller(racine, ID, argv=["--issue", "reussie"]) == 2
+    assert aller(racine, ID, argv=["--remplacer"]) == 2
